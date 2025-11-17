@@ -15,11 +15,11 @@ EMBEDDING_MODEL = "ArcFace"  # Options: "ArcFace", "Facenet", "VGG-Face", "DeepF
 EMBEDDING_DIM = 512  # Depends on model
 
 # Similarity Threshold Configuration
-# Threshold lebih toleran untuk variasi (kacamata, pencahayaan, angle)
-THRESHOLD_VERIFIED = 0.70    # Diturunkan dari 0.80 → 0.70 (FAR ~0.1%, lebih balance)
-THRESHOLD_BORDERLINE = 0.60  # Diturunkan dari 0.70 → 0.60
-# < 0.60 = REJECTED
-# Note: 0.70 memberikan balance antara security dan usability
+# Threshold sangat toleran untuk user experience (no borderline)
+THRESHOLD_VERIFIED = 0.55    # >= 0.55 = VERIFIED (hijau)
+THRESHOLD_BORDERLINE = 0.54  # Tidak digunakan (no borderline)
+# < 0.55 = REJECTED (gray)
+# Note: 0.55 sangat toleran, cocok untuk variasi besar (kacamata, lighting, angle)
 
 # Liveness Detection Configuration
 LIVENESS_ENABLED = True
