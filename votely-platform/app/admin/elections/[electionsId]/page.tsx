@@ -2,8 +2,8 @@
 
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/badge'
 import { mockElections, mockCandidates } from '@/lib/mock-data'
 import { ArrowRight, Calendar, MapPin } from 'lucide-react'

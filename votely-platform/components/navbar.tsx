@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/ui/Button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { LogOut, Home, Settings, Shield } from 'lucide-react'
 

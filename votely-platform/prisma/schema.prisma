@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Penduduk {
+  id           String   @id @default(cuid())
+  nik          String   @unique
+  namaLengkap  String
+  tanggalLahir DateTime
+  alamat       String?
+  foto         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User?
+}
+
+model User {
+  id         String   @id @default(cuid())
+  password   String
+  role       Role     @default(WARGA)
+  pendudukId String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  penduduk   Penduduk @relation(fields: [pendudukId], references: [id], onDelete: Cascade)
+}
+
+enum Role {
+  ADMIN
+  WARGA
+}
