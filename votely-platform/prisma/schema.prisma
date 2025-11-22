@@ -27,6 +27,8 @@ model User {
   role       Role     @default(WARGA)
   pendudukId String   @unique
   createdAt  DateTime @default(now())
+  walletAddress       String  @unique  // Alamat publik (0x...)
+  encryptedPrivateKey String           // Kunci rahasia (disimpan terenkripsi!)
   updatedAt  DateTime @updatedAt
   penduduk   Penduduk @relation(fields: [pendudukId], references: [id], onDelete: Cascade)
 }
