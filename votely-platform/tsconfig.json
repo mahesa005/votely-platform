@@ -20,7 +20,8 @@
     ],
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+    "typeRoots": ["./generated/prisma", "./node_modules/@types"]
   },
   "include": [
     "next-env.d.ts",
@@ -28,7 +29,12 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "**/*.mts",
+    "./generated/prisma",
+    "./lib",
+    "./app",
+    "./prisma",
+    "./**/*.ts"
   ],
   "exclude": ["node_modules"]
 }
