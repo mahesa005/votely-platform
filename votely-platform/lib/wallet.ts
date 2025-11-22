@@ -13,6 +13,8 @@ export async function createUserWallet(userId: string): Promise<WalletInfo> {
     const user = await prisma.user.findUnique({ where: { id: userId}})
     if (!user) throw new Error ('User not found') // throws error if userId not found
     
+    const existingEncrypted = user.encryptedPrivateKey
+
     if (user.walletAddress && user.encryptedPrivateKey) {
         return { walletAddress: user.walletAddress, encryptedPrivateKey: user.encryptedPrivateKey } // returns existing wallet
     }
@@ -27,5 +29,5 @@ export async function createUserWallet(userId: string): Promise<WalletInfo> {
             encryptedPrivateKey,
         },
     })
-    return { walletAddress: updated.walletAddress, encryptedPrivateKey: updated.encryptedPrivateKey}
+    return { walletAddress: updated.walletAddress, encryptedPrivateKey}
 }

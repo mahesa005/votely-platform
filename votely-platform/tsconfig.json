@@ -21,7 +21,7 @@
     "paths": {
       "@/*": ["./*"]
     },
-    "typeRoots": ["./generated/prisma", "./node_modules/@types"]
+    // "typeRoots": ["./generated/prisma", "./node_modules/@types"]
   },
   "include": [
     "next-env.d.ts",
