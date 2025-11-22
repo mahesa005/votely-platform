@@ -1,32 +1,23 @@
-/**
- * Singleton Prisma client wrapper
- *
- * Purpose:
- * - Create and export a single PrismaClient instance for the app.
- * - During local development (hot reload) reuse the same instance so we don't
- *   create a new DB connection on every module reload.
- *
- * Why this is important:
- * - Prevents connection exhaustion when the dev server reloads frequently.
- * - Keeps a single, central DB client for all code to import: `import { prisma } from '@/lib/prisma'`
- */
+import { PrismaClient } from "../prisma/generated/client/index";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 
-import { PrismaClient } from '../generated/prisma/client' // generated client (adjust path if you use @prisma/client)
+const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
-// Extend the global scope so TypeScript knows about the cached client.
-// Use `__prisma` to store a single client instance across module reloads.
-declare global {
-  // eslint-disable-next-line no-var
-  var __prisma: PrismaClient | undefined
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error("DATABASE_URL is not defined");
 }
 
-// If there is already a cached client in the global object reuse it,
-// otherwise create a new PrismaClient instance.
-const prisma = global.__prisma ?? new PrismaClient()
+const pool = new Pool({ connectionString });
+const adapter = new PrismaPg(pool);
 
-// Only cache the instance in non-production environments to avoid issues
-// with long-running serverless handlers / platform expectations in production.
-if (process.env.NODE_ENV !== 'production') global.__prisma = prisma
+export const prisma =
+  globalForPrisma.prisma ||
+  new PrismaClient({
+    adapter,
+    log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
+  });
 
-// Export the shared client for the rest of the application to use.
-export { prisma }
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;

@@ -1,47 +1,34 @@
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { ethers } from 'ethers';
-import { encryptKey } from '@/lib/crypto';
-import bcrypt from 'bcryptjs';
+import { NextResponse } from "next/server";
+import { registerVoterAccount } from "@/lib/auth";
 
-export async function POST(req: Request) {
+export async function POST(request: Request) {
     try {
-        const { nik, name, password } = await req.json();
+        const body = await request.json();
+        const { nik, password } = body;
 
-        // 1. Validate NIK
-        const existingUser = await prisma.user.findUnique({ where: { nik }});
-        if (existingUser) {
-            return NextResponse.json({ error: "NIK sudah terdaftar" }, { status: 400});
+        if (!nik || !password) {
+            return NextResponse.json(
+                { error: "NIK dan password wajib diisi." },
+                { status: 400 }
+            );
         }
 
-        // 2. Create new wallet
-        const wallet = ethers.Wallet.createRandom();
+        const result = await registerVoterAccount(nik, password);
 
-        // 3. Encrypt Private Key before storing in the DB
-        const encryptedKey = encryptKey(wallet.privateKey);
+        return NextResponse.json(result, { status: 201 });
 
-        // 4. Hash Password
-        const hashedPassword = await bcrypt.hash(password, 10)
+    } catch (error: any) {
+            // Handle error 
+        if (error.message === "NIK sudah terdaftar sebagai akun.") {
+        return NextResponse.json({ error: error.message }, { status: 409 }); // Conflict
+        }
+        if (error.message.includes("tidak ditemukan dalam database")) {
+        return NextResponse.json({ error: error.message }, { status: 404 }); // Not Found
+        }
 
-        // 5. Store user + wallet in DB
-        const newUser = await prisma.user.create({
-            data: {
-                nik,
-                name,
-                password: hashedPassword,
-                walletAddress: wallet.address,
-                encryptedPrivateKey: encryptedKey
-            }
-        })
-
-        return NextResponse.json({
-            success: true,
-            message: "User & Wallet berhasil dibuat",
-            walletAddress: newUser.walletAddress
-        });
-    
-    } catch (error) {
-        console.error(error);
-        return NextResponse.json({ error: "Gagal registrasi" }, { status: 500});
-    } 
+        return NextResponse.json(
+        { error: "Terjadi kesalahan internal server." },
+        { status: 500 }
+        );
+    }
 }
