@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { createUserWallet } from '@/lib/wallet'
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { User, Penduduk } from "../prisma/generated/client/index";
@@ -36,14 +37,41 @@ async function createUserFromCitizenData(
   citizenData: Penduduk,
   passwordHash: string
 ): Promise<User> {
-  return await prisma.user.create({
+
+  // 1) Create user without wallet
+  const user = await prisma.user.create({
     data: {
       password: passwordHash,
-      role: "WARGA", // Default role
+      role: "WARGA",
       pendudukId: citizenData.id,
-      walletAddress: "1234567890", 
+      walletAddress: "",
+      encryptedPrivateKey: ""
     },
   });
+
+  // 2) Generate wallet
+  const wallet = await createUserWallet(user.id)
+
+  // Atomic persist wallet only if none exists (prevent race)
+  const res = await prisma.user.updateMany({
+    where: { id: user.id, walletAddress: "" },
+    data: {
+      walletAddress: wallet.walletAddress,
+      encryptedPrivateKey: wallet.encryptedPrivateKey,
+    },
+  })
+
+  if (res.count === 0) {
+    // another process wrote the wallet concurrently — fetch current
+    const existing = await prisma.user.findUnique({ where: { id: user.id } })
+    if (!existing) throw new Error("Failed to fetch user after wallet concurrent update")
+    return existing
+  }
+
+  // fetch and return updated user
+  const updated = await prisma.user.findUnique({ where: { id: user.id } })
+  if (!updated) throw new Error("Failed to fetch newly created user")
+  return updated
 }
 
 /**
