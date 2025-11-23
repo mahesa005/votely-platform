@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import { loginVoterAccount } from "@/lib/auth";
+import { cookies } from "next/headers";
 
 
 export async function POST(request: Request) {
@@ -16,7 +16,23 @@ export async function POST(request: Request) {
         }
 
         const result = await loginVoterAccount(nik, password);
-        return NextResponse.json(result, { status: 200 });
+
+        const cookieStore = await cookies(); // Next.js 15 pakai await, versi 14 tanpa await
+
+        cookieStore.set("token", result.token, {
+        httpOnly: true, 
+        secure: process.env.NODE_ENV === "production", 
+        sameSite: "strict", 
+        maxAge: 60 * 60 * 24, 
+        path: "/", 
+        });
+        return NextResponse.json(
+            { 
+                message: "Login berhasil", 
+                user: result.user 
+            },
+            { status: 200 }
+        );
     } catch (error: any) {
         // Handle error
         if (error.message === "Kombinasi NIK atau password salah.") {

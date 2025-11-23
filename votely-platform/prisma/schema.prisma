@@ -1,11 +1,9 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "./generated/client"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model Penduduk {
@@ -13,6 +11,10 @@ model Penduduk {
   nik          String   @unique
   namaLengkap  String
   tanggalLahir DateTime
+  provinsi     String?
+  kabKota      String?
+  kecamatan    String?
+  kelurahan    String?
   alamat       String?
   foto         String?
   createdAt    DateTime @default(now())
