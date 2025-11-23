@@ -22,12 +22,5 @@ export async function createUserWallet(userId: string): Promise<WalletInfo> {
     const wallet = ethers.Wallet.createRandom() // Creates new wallet
     const encryptedPrivateKey = encryptKey(wallet.privateKey) // Encrypts wallet private key
 
-    const updated = await prisma.user.update({
-        where: { id: userId },
-        data: {
-            walletAddress: wallet.address,
-            encryptedPrivateKey,
-        },
-    })
-    return { walletAddress: updated.walletAddress, encryptedPrivateKey}
+    return { walletAddress: wallet.address, encryptedPrivateKey}
 }
