@@ -8,7 +8,7 @@ export async function POST(req: Request) {
         // Call electionService function
         const result = await createElectionService({
             ...body,
-            adminId: 'apayak'
+            adminId: 'cmibaa1x40000wcudx7zuazlq'
         })
 
         return NextResponse.json({
