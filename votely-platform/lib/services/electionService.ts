@@ -61,6 +61,10 @@ export async function createElectionService(params: CreateElectionParams) {
   // contract object that is callable by adminWaller signer
   const votingContract = new ethers.Contract(contractAddress, VotingArtifact.abi, adminWallet)
 
+  // Get current nonce from chain
+  let currentNonce = await provider.getTransactionCount(adminWallet.address, "latest");
+  console.log(`🔢 Initial Nonce: ${currentNonce}`);
+
   // 3. Create Election in Blockchain
   console.log("Inisiasi Transaksi Blockchain: Membuat Election")
 
@@ -73,8 +77,14 @@ export async function createElectionService(params: CreateElectionParams) {
     description,
     startTimeUnix,
     endTimeUnix,
-    { gasLimit: 1000000 } // let ethers auto-manage nonce
+    { 
+        gasLimit: 1000000,
+        nonce:currentNonce
+    } // let ethers auto-manage nonce
   );
+
+  // Increment nonce for next transaction
+  currentNonce++
 
   console.log('TX sent:', tx.hash);
   
@@ -124,28 +134,33 @@ export async function createElectionService(params: CreateElectionParams) {
 
   // 5. Add Candidates to Blockchain (loop)
   // Add candidates sequentially - ethers will auto-manage nonce
-    for (let i = 0; i < params.candidates.length; i++) {
-    const candidate = params.candidates[i];
-    console.log(`Adding Candidate ${i + 1}/${params.candidates.length}: ${candidate.name}`);
-    
-    // Recreate signer to force nonce refresh
-    const freshSigner = new ethers.Wallet(privateKey, provider);
-    const freshContract = new ethers.Contract(contractAddress, VotingArtifact.abi, freshSigner);
-    
-    const candidateTx = await freshContract.addCandidate(
-        onChainElectionId,
-        candidate.name,
-        candidate.description,
-        candidate.image || "",
-        { gasLimit: 500_000 }
-    );
-    
-    console.log(`Candidate tx sent: ${candidateTx.hash}`);
-    await candidateTx.wait();
-    console.log(`Candidate ${candidate.name} confirmed on-chain`);
-    }
+    for (const [index, cand] of candidates.entries()) {
+    console.log(`🔗 Adding Candidate ${index+1}/${candidates.length}: ${cand.name} with Nonce ${currentNonce}`);
 
-console.log("Semua kandidat berhasil ditambahkan ke blockchain");
+    try {
+        const addTx = await votingContract.addCandidate(
+            onChainElectionId,
+            cand.name,
+            cand.party,
+            cand.image || "placeholder.jpg",
+            { 
+                gasLimit: 1000000,
+                nonce: currentNonce // Pakai nonce yang sudah di-increment
+            }
+        );
+        
+        // PENTING: Increment nonce LANGSUNG setelah mengirim transaksi
+        // Jangan tunggu .wait() selesai baru increment, tapi increment untuk penyiapan TX berikutnya
+        currentNonce++; 
+
+        // Kita tetap await wait() agar urutan block rapi (opsional, bisa diparallelkan kalau mau cepat)
+        await addTx.wait(); 
+
+    } catch (err) {
+        console.error(`❌ Gagal menambah kandidat ${cand.name}:`, err);
+        throw new Error(`Gagal menambah kandidat ke Blockchain: ${cand.name}`);
+    }
+    }
 
   // 6. Save Mirror Data to Database (Prisma)
   console.log("Saving to Database...");
