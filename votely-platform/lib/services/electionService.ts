@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { ethers } from 'ethers'
+import { ethers , type Log} from 'ethers'
 import VotingArtifact from '@/artifacts/contracts/Voting.sol/Voting.json'
 
 // Interface for input parameter
@@ -64,6 +64,7 @@ export async function createElectionService(params: CreateElectionParams) {
   // 3. Create Election in Blockchain
   console.log("Inisiasi Transaksi Blockchain: Membuat Election")
 
+  
   const startTimeUnix = Math.floor(new Date(startDateTime).getTime() / 1000);
   const endTimeUnix = Math.floor(new Date(endDateTime).getTime() / 1000);
 
@@ -72,22 +73,48 @@ export async function createElectionService(params: CreateElectionParams) {
     description,
     startTimeUnix,
     endTimeUnix,
-    { gasLimit: 1000000 } // Adjust limit jika perlu
+    { gasLimit: 1000000 } // let ethers auto-manage nonce
   );
 
+  console.log('TX sent:', tx.hash);
+  
+  // 4. Retrieve ElectionId 
   const receipt = await tx.wait();
+  console.log('tx.hash', tx.hash);
+  console.log('receipt.status', receipt.status);
+  console.log('raw logs', receipt.logs.map((l: Log) => ({
+    address: l.address,
+    topics: l.topics,
+    data: l.data
+    })));
 
-  // 4. Retrieve Election ID from Event Logs
   let onChainElectionId: number | null = null;
   for (const log of receipt.logs) {
     try {
-      const parsedLog = votingContract.interface.parseLog(log);
-      if (parsedLog?.name === 'ElectionCreated') {
-        onChainElectionId = Number(parsedLog.args[0]);
-        break;
-      }
-    } catch (e) { continue; }
-  }
+            const parsed = votingContract.interface.parseLog(log);
+            if (parsed) {
+            console.log('parsed event:', parsed.name, parsed.args);
+            if (parsed.name === 'ElectionCreated') {
+                onChainElectionId = Number(parsed.args[0]);
+                break;
+            }
+            }
+        } catch (err) {
+            // not a matching ABI event — ignore
+        }
+    }
+
+    // Fallback: read contract state if no event found
+    if (onChainElectionId === null) {
+        try {
+            const count = await votingContract.electionCount(); // change to whatever getter exists
+            console.log('fallback electionCount', count.toString());
+            // derive id if contract uses count-1 as latest id
+            onChainElectionId = Number(count) - 1;
+        } catch (err) {
+            console.error('fallback read failed', err);
+        }
+    }
 
   if (onChainElectionId === null) {
     throw new Error("Gagal mendapatkan Election ID dari Blockchain.");
@@ -96,17 +123,29 @@ export async function createElectionService(params: CreateElectionParams) {
   console.log(`Election Berhasil Dibuat Pada Chain. ID: ${onChainElectionId}`);
 
   // 5. Add Candidates to Blockchain (loop)
-  for (const cand of candidates) {
-    console.log(`Adding Candidate: ${cand.name}`);
-    const addTx = await votingContract.addCandidate(
-      onChainElectionId,
-      cand.name,
-      cand.party,
-      cand.image || "placeholder.jpg",
-      { gasLimit: 500000 }
+  // Add candidates sequentially - ethers will auto-manage nonce
+    for (let i = 0; i < params.candidates.length; i++) {
+    const candidate = params.candidates[i];
+    console.log(`Adding Candidate ${i + 1}/${params.candidates.length}: ${candidate.name}`);
+    
+    // Recreate signer to force nonce refresh
+    const freshSigner = new ethers.Wallet(privateKey, provider);
+    const freshContract = new ethers.Contract(contractAddress, VotingArtifact.abi, freshSigner);
+    
+    const candidateTx = await freshContract.addCandidate(
+        onChainElectionId,
+        candidate.name,
+        candidate.description,
+        candidate.image || "",
+        { gasLimit: 500_000 }
     );
-    await addTx.wait();
-  }
+    
+    console.log(`Candidate tx sent: ${candidateTx.hash}`);
+    await candidateTx.wait();
+    console.log(`Candidate ${candidate.name} confirmed on-chain`);
+    }
+
+console.log("Semua kandidat berhasil ditambahkan ke blockchain");
 
   // 6. Save Mirror Data to Database (Prisma)
   console.log("Saving to Database...");
