@@ -82,27 +82,37 @@ async function createUserFromCitizenData(
  * - Hash password
  * - Create User
  */
-export async function registerVoterAccount(nik: string, password: string) {
-  const existingUser = await getUserByNik(nik);
+
+type PendudukInput = Omit<Penduduk, "id" | "createdAt" | "updatedAt" | "foto" | "alamat">;
+
+export async function registerVoterAccount(password: string, pendudukData: PendudukInput) {
+  const existingUser = await getUserByNik(pendudukData.nik);
   if (existingUser) {
     throw new Error("NIK sudah terdaftar sebagai akun.");
   }
 
   const citizenData = await prisma.penduduk.findUnique({
-    where: { nik },
+    where: { nik: pendudukData.nik },
   });
 
   if (!citizenData) {
     throw new Error("NIK tidak ditemukan dalam database kependudukan (Penduduk).");
   }
 
-  const hashedPassword = await hashPassword(password);
+  //validate data
+  const mismatchedFields: string[] = [];
+  if (citizenData.namaLengkap !== pendudukData.namaLengkap) mismatchedFields.push("nama lengkap");
+  if (citizenData.provinsi !== pendudukData.provinsi) mismatchedFields.push("provinsi");
+  if (citizenData.kabKota !== pendudukData.kabKota) mismatchedFields.push("kota");
+  if (citizenData.kecamatan !== pendudukData.kecamatan) mismatchedFields.push("kecamatan");
+  if (citizenData.kelurahan !== pendudukData.kelurahan) mismatchedFields.push("kelurahan");
+  if (citizenData.tanggalLahir.getTime() !== pendudukData.tanggalLahir.getTime()) mismatchedFields.push("tanggal lahir");
+  if (mismatchedFields.length > 0) {
+    throw new Error(`Data tidak sesuai: ${mismatchedFields.join(", ")}`);
+  }
 
-  console.log("Citizen data:", {
-    id: citizenData.id,
-    nik: citizenData.nik,
-    hasPassword: !!hashedPassword,
-  });
+
+  const hashedPassword = await hashPassword(password);
 
   try {
     const newUser = await createUserFromCitizenData(citizenData, hashedPassword);
@@ -144,6 +154,8 @@ export async function loginVoterAccount(nik: string, password: string) {
     JWT_SECRET,
     { expiresIn: "1d" } // Token valid 1 hari
   );
+
+  
 
   return {
     user: {

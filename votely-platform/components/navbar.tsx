@@ -11,8 +11,17 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   const router = useRouter()
   const pathname = usePathname()
 
-  const handleLogout = () => {
-    router.push('/auth/login')
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+      })
+      router.push('/auth/login')
+      router.refresh()
+    } catch (error) {
+      console.error('Logout error:', error)
+      router.push('/auth/login')
+    }
   }
 
   return (

@@ -4,21 +4,31 @@ import { registerVoterAccount } from "@/lib/auth";
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { nik, password } = body;
+        const { nik, namaLengkap, password, provinsi, kabKota, kecamatan, kelurahan, dob } = body;
 
-        if (!nik || !password) {
+        if (!nik || !namaLengkap || !password || !provinsi || !kabKota || !kecamatan || !kelurahan || !dob) {
             return NextResponse.json(
-                { error: "NIK dan password wajib diisi." },
+                { error: "Semua field wajib diisi." },
                 { status: 400 }
             );
         }
 
-        const result = await registerVoterAccount(nik, password);
+        const pendudukData = { 
+            nik,
+            namaLengkap,
+            provinsi,
+            kabKota,
+            kecamatan,
+            kelurahan,
+            tanggalLahir: new Date(dob),
+        };
+
+        const result = await registerVoterAccount(password, pendudukData);
 
         return NextResponse.json(result, { status: 201 });
 
     } catch (error: any) {
-            // Handle error 
+
         if (error.message === "NIK sudah terdaftar sebagai akun.") {
         return NextResponse.json({ error: error.message }, { status: 409 }); // Conflict
         }

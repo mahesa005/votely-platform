@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { ErrorDialog } from '@/components/ui/error-dialog'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { AlertCircle, Lock, User } from 'lucide-react'
 import { FaceScanner } from '@/components/face-scanner'
 
@@ -19,46 +20,75 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [faceVerified, setFaceVerified] = useState(false)
   const [showFaceScanner, setShowFaceScanner] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false); 
+  const [modalMessage, setModalMessage] = useState("");
+
+  const performLogin = async () => {
+    if (!nik || !password) {
+      setError('Mohon isi NIK dan password Anda.')
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ nik, password }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Terjadi kesalahan saat login.')
+      }
+
+      // Check user role and redirect accordingly
+      router.push('/dashboard')
+      router.refresh()
+    } catch (err) {
+      console.error(err);
+      setModalMessage(err instanceof Error ? err.message : "Terjadi kesalahan tak terduga.");
+      setIsModalOpen(true); 
+      setIsLoading(false);
+    }
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setIsModalOpen(false);
     
     if (!faceVerified) {
       setShowFaceScanner(true)
       return
     }
 
-    setIsLoading(true)
-    await new Promise(r => setTimeout(r, 500))
+    await performLogin()
+  }
 
-    const adminNik = '1234567890123456'
-    if (nik === adminNik && password) {
-      router.push('/admin')
-    } else if (nik && password) {
-      router.push('/dashboard')
-    } else {
-      setError('Please enter both NIK and password')
-    }
-
-    setIsLoading(false)
+  const handleFaceVerified = async () => {
+    setFaceVerified(true)
+    setShowFaceScanner(false)
+    await performLogin()
   }
 
   if (showFaceScanner && !faceVerified) {
     return (
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="border-b border-border bg-secondary/50 py-6">
-          <CardTitle className="text-2xl">Verify Your Identity</CardTitle>
-          <CardDescription>Facial recognition is required for security</CardDescription>
+          <CardTitle className="text-2xl">Verifikasi Identitas Anda</CardTitle>
+          <CardDescription>Penggunaan pengenalan wajah diperlukan demi keamanan</CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
           <FaceScanner 
-            onSuccess={() => {
-              setFaceVerified(true)
-              setShowFaceScanner(false)
-            }}
-            title="Face Verification"
-            description="Position your face in the center for verification"
+            onSuccess={handleFaceVerified}
+            onSkip={handleFaceVerified}
+            title="Verifikasi Wajah"
+            description="Posisikan wajah Anda di tengah untuk verifikasi"
           />
           <Button 
             variant="outline" 
@@ -68,7 +98,7 @@ export default function LoginPage() {
               setFaceVerified(false)
             }}
           >
-            Back
+            Kembali
           </Button>
         </CardContent>
       </Card>
@@ -76,10 +106,16 @@ export default function LoginPage() {
   }
 
   return (
+    <> 
+      <ErrorDialog 
+        isOpen={isModalOpen} 
+        message={modalMessage} 
+        onClose={() => setIsModalOpen(false)} 
+      />
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader className="border-b border-border bg-secondary/50 py-6">
-        <CardTitle className="text-2xl">Welcome to Votely</CardTitle>
-        <CardDescription>Sign in to participate in elections or manage the voting process</CardDescription>
+        <CardTitle className="text-2xl">Selamat Datang di Platform Votely</CardTitle>
+        <CardDescription>Masuk untuk berpartisipasi dalam pemilihan atau mengelola proses pemungutan suara</CardDescription>
       </CardHeader>
       <CardContent className="pt-6">
         <form onSubmit={handleLogin} className="space-y-5">
@@ -97,12 +133,12 @@ export default function LoginPage() {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="nik" className="text-sm font-medium">NIK (National Identification)</Label>
+            <Label htmlFor="nik" className="text-sm font-medium">NIK (Nomor Induk Kependudukan)</Label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 id="nik"
-                placeholder="Enter your NIK"
+                placeholder="Masukkan NIK Anda"
                 value={nik}
                 onChange={(e) => setNik(e.target.value)}
                 className="pl-10"
@@ -127,30 +163,25 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="bg-secondary/60 rounded-lg p-4 text-sm text-secondary-foreground">
-            <p className="font-medium mb-1">Demo Credentials:</p>
-            <p className="text-xs">Admin: 1234567890123456 / any password</p>
-            <p className="text-xs">Voter: any other NIK / any password</p>
-          </div>
-
           <Button
             type="submit"
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium h-10"
             disabled={isLoading}
           >
-            {isLoading ? 'Signing in...' : faceVerified ? 'Complete Login' : 'Sign In'}
+            {isLoading ? 'Proses...' : faceVerified ? 'Login Selesai' : 'Masuk'}
           </Button>
         </form>
 
         <div className="mt-6 pt-6 border-t border-border">
-          <p className="text-sm text-muted-foreground text-center mb-4">Don't have an account?</p>
+          <p className="text-sm text-muted-foreground text-center mb-4">Belum punya akun?</p>
           <Link href="/auth/register">
             <Button variant="outline" className="w-full" disabled={isLoading}>
-              Register as Voter
+              Daftar sebagai Pemilih
             </Button>
           </Link>
         </div>
       </CardContent>
     </Card>
+    </>
   )
 }

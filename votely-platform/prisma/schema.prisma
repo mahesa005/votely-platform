@@ -11,14 +11,14 @@ model Penduduk {
   nik          String   @unique
   namaLengkap  String
   tanggalLahir DateTime
-  provinsi     String?
-  kabKota      String?
-  kecamatan    String?
-  kelurahan    String?
   alamat       String?
   foto         String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  kabKota      String?
+  kecamatan    String?
+  kelurahan    String?
+  provinsi     String?
   user         User?
 }
 
