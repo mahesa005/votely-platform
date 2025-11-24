@@ -1,0 +1,15 @@
+await ethers.provider.getTransactionCount(addr2)
+const addr2 = "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65"
+const addr = "0x15d34aaf54267db7d7c367839aaf71a00a2c6a65"
+await ethers.provider.getTransactionCount(addr)
+const addr = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+console.log(code)
+const code = await ethers.provider.getCode('0x5FbDB2315678afecb367f032d93F642f64180aa3')
+console.log(code)
+const code = await ethers.provider.getCode('0x5FbDB2315678afecb367f032d93F642f64180aa3')
+console.log(code)
+const code = await ethers.provider.getCode('0x5FbDB2315678afecb367f032d93F642f64180aa3')
+.help
+const code = await ethers.provider.getCode('0x5FbDB2315678afecb367f032d93F642f64180aa3')
+console.log
+const code = await ethers.provider.getCode('0x5FbDB2315678afecb367f032d93F642f64180aa3')

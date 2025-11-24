@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { createUserWallet } from '@/lib/wallet'
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import type { User, Penduduk } from "../prisma/generated/client/index";
+import type { User, Penduduk } from "@prisma/client";
 
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret";
