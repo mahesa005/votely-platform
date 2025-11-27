@@ -24,29 +24,55 @@ export function FaceScanner({ onSuccess, onSkip, title = 'Face Verification', de
   useEffect(() => {
     if (!scanning) return
 
+    let mounted = true
+
     const startCamera = async () => {
       try {
+        console.log('Requesting camera access...')
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
         })
         
-        if (videoRef.current) {
+        console.log('Camera access granted, stream:', stream)
+        console.log('videoRef.current:', videoRef.current)
+        console.log('mounted:', mounted)
+        
+        if (videoRef.current && mounted) {
+          console.log('Setting srcObject...')
           videoRef.current.srcObject = stream
-          setCameraReady(true)
+          
+          // Set ready immediately after setting srcObject
+          // The autoPlay attribute will handle playing
+          console.log('Scheduling camera ready in 500ms...')
+          setTimeout(() => {
+            console.log('setTimeout fired, mounted:', mounted)
+            if (mounted) {
+              console.log('Setting camera ready')
+              setCameraReady(true)
+            }
+          }, 500)
+        } else {
+          console.log('Skipping srcObject - videoRef or mounted is false')
         }
       } catch (err) {
-        setError('Unable to access camera. Please check permissions.')
-        setScanning(false)
+        console.error('Camera access error:', err)
+        if (mounted) {
+          setError('Unable to access camera. Please check permissions.')
+          setScanning(false)
+          setCameraReady(false)
+        }
       }
     }
 
     startCamera()
 
     return () => {
+      mounted = false
       if (videoRef.current?.srcObject) {
         const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
         tracks.forEach(track => track.stop())
       }
+      setCameraReady(false)
     }
   }, [scanning])
 
@@ -107,31 +133,40 @@ export function FaceScanner({ onSuccess, onSkip, title = 'Face Verification', de
           </Alert>
         )}
 
-        {scanning && cameraReady ? (
+        {scanning ? (
           <div className="space-y-4">
             <div className="relative bg-black rounded-lg overflow-hidden aspect-video flex items-center justify-center">
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
+                muted
                 className="w-full h-full object-cover"
+                style={{ transform: 'scaleX(-1)' }}
               />
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-48 h-56 border-2 border-primary rounded-lg opacity-75"></div>
-              </div>
+              {!cameraReady && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                  <div className="text-center">
+                    <div className="w-10 h-10 rounded-full border-2 border-white border-t-transparent animate-spin mx-auto mb-3"></div>
+                    <p className="text-sm text-white">Initializing camera...</p>
+                  </div>
+                </div>
+              )}
+              {cameraReady && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-48 h-56 border-2 border-primary rounded-lg opacity-75"></div>
+                </div>
+              )}
             </div>
             <canvas ref={canvasRef} className="hidden" width={640} height={480} />
-            <p className="text-xs text-muted-foreground text-center">Align your face within the frame</p>
-            <Button onClick={handleScan} className="w-full bg-primary hover:bg-primary/90" disabled={!cameraReady}>
-              Capture Face
-            </Button>
-          </div>
-        ) : scanning && !cameraReady ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="text-center">
-              <div className="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin mx-auto mb-3"></div>
-              <p className="text-sm text-muted-foreground">Initializing camera...</p>
-            </div>
+            {cameraReady && (
+              <>
+                <p className="text-xs text-muted-foreground text-center">Align your face within the frame</p>
+                <Button onClick={handleScan} className="w-full bg-primary hover:bg-primary/90">
+                  Capture Face
+                </Button>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
