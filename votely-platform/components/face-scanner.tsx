@@ -8,11 +8,12 @@ import { AlertCircle, CheckCircle, Camera } from 'lucide-react'
 
 interface FaceScannerProps {
   onSuccess: () => void
+  onSkip?: () => void
   title?: string
   description?: string
 }
 
-export function FaceScanner({ onSuccess, title = 'Face Verification', description = 'Position your face in the center and hold still' }: FaceScannerProps) {
+export function FaceScanner({ onSuccess, onSkip, title = 'Face Verification', description = 'Position your face in the center and hold still' }: FaceScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [scanning, setScanning] = useState(false)
@@ -133,9 +134,16 @@ export function FaceScanner({ onSuccess, title = 'Face Verification', descriptio
             </div>
           </div>
         ) : (
-          <Button onClick={() => setScanning(true)} className="w-full bg-primary hover:bg-primary/90 h-10">
-            Start Face Scan
-          </Button>
+          <div className="space-y-3">
+            <Button onClick={() => setScanning(true)} className="w-full bg-primary hover:bg-primary/90 h-10">
+              Start Face Scan
+            </Button>
+            {onSkip && (
+              <Button onClick={onSkip} variant="outline" className="w-full h-10">
+                Continue Without Verification
+              </Button>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

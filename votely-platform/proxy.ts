@@ -8,7 +8,7 @@ const routeRoles = {
   "/dashboard": ["WARGA", "ADMIN"]
 };
 
-const authRoutes = ["/login", "/register"];
+const authRoutes = ["/auth/login", "/auth/register"];
 const publicRoutes = ["/", "/api/auth"];
 
 export async function proxy(request: NextRequest) {
@@ -44,7 +44,7 @@ export async function proxy(request: NextRequest) {
 
   if (matchedRoute) {
     if (!token) {
-      const url = new URL("/login", request.url);
+      const url = new URL("/auth/login", request.url);
       url.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(url);
     }
@@ -61,7 +61,7 @@ export async function proxy(request: NextRequest) {
       return NextResponse.next();
 
     } catch (error) {
-      const response = NextResponse.redirect(new URL("/login", request.url));
+      const response = NextResponse.redirect(new URL("/auth/login", request.url));
       response.cookies.delete("token");
       return response;
     }
