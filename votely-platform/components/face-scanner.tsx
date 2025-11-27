@@ -16,10 +16,9 @@ interface FaceScannerProps {
 export function FaceScanner({ onSuccess, onSkip, title = 'Face Verification', description = 'Position your face in the center and hold still' }: FaceScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [scanning, setScanning] = useState(false)
   const [scanned, setScanned] = useState(false)
   const [error, setError] = useState('')
-  const [cameraReady, setCameraReady] = useState(false)
+  const [verifying, setVerifying] = useState(false)
 
   useEffect(() => {
     if (!scanning) return
@@ -76,31 +75,43 @@ export function FaceScanner({ onSuccess, onSkip, title = 'Face Verification', de
     }
   }, [scanning])
 
-  const handleScan = async () => {
-    if (!videoRef.current || !canvasRef.current) return
-
+  const handleStartScan = () => {
     try {
       setError('')
-      const context = canvasRef.current.getContext('2d')
-      if (!context) return
-
-      // Capture frame from video
-      context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height)
-
-      await new Promise(r => setTimeout(r, 800))
-
-      setScanned(true)
-      setScanning(false)
+      setVerifying(true)
       
-      // Stop camera
-      if (videoRef.current?.srcObject) {
-        const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
-        tracks.forEach(track => track.stop())
+      // Open face verification popup window
+      const width = 720
+      const height = 640
+      const left = (window.screen.width - width) / 2
+      const top = (window.screen.height - height) / 2
+      
+      const popup = window.open(
+        'http://localhost:5000/webcam-verify',
+        'Face Verification',
+        `width=${width},height=${height},left=${left},top=${top},resizable=no,scrollbars=no`
+      )
+      
+      if (!popup) {
+        setError('Please allow popups for face verification.')
+        setVerifying(false)
+        return
       }
-
-      setTimeout(onSuccess, 500)
+      
+      // Check if popup is closed without verification
+      const checkClosed = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkClosed)
+          if (verifying && !scanned) {
+            setVerifying(false)
+            setError('Verification cancelled.')
+          }
+        }
+      }, 500)
+      
     } catch (err) {
-      setError('Face scan failed. Please try again.')
+      setError('Failed to start face verification.')
+      setVerifying(false)
     }
   }
 
@@ -170,7 +181,7 @@ export function FaceScanner({ onSuccess, onSkip, title = 'Face Verification', de
           </div>
         ) : (
           <div className="space-y-3">
-            <Button onClick={() => setScanning(true)} className="w-full bg-primary hover:bg-primary/90 h-10">
+            <Button onClick={handleStartScan} className="w-full bg-primary hover:bg-primary/90 h-10">
               Start Face Scan
             </Button>
             {onSkip && (
