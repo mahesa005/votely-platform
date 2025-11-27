@@ -9,31 +9,30 @@ import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { mockElections, mockCandidates } from '@/lib/mock-data'
-import { Camera, CheckCircle, Users, ArrowLeft } from 'lucide-react'
+import { Camera, CheckCircle, Users, ArrowLeft, Loader2 } from 'lucide-react'
 
-function getStatusColor(status: string) {
-  switch (status) {
-    case 'Upcoming':
-      return 'bg-blue-100 text-blue-800'
-    case 'Active':
-      return 'bg-green-100 text-green-800'
-    case 'Finished':
-      return 'bg-gray-100 text-gray-800'
-    default:
-      return 'bg-gray-100 text-gray-800'
-  }
-}
+// --- IMPORT THIRDWEB ---
+import { prepareContractCall } from "thirdweb"
+import { TransactionButton, useActiveAccount } from "thirdweb/react"
+import { votingContract } from "@/lib/thirdweb" // Pastikan path ini benar
+// -----------------------
 
 export default function VotingPage() {
   const params = useParams()
   const router = useRouter()
-  const election = mockElections.find(e => e.id === params.electionId as string)
+  const account = useActiveAccount() // Cek apakah user sudah login wallet
+
+  // Konversi ID string dari URL ke BigInt untuk smart contract
+  const electionIdParam = params.electionId as string
+  const election = mockElections.find(e => e.id === electionIdParam)
   const candidates = mockCandidates[election?.id || ''] || []
 
   const [faceVerified, setFaceVerified] = useState(false)
   const [votedFor, setVotedFor] = useState<string | null>(null)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState<any>(null)
+  
+  // State local untuk hasil (nanti bisa diganti fetch real-time dari blockchain)
   const [showResults, setShowResults] = useState(false)
 
   if (!election) {
@@ -53,14 +52,10 @@ export default function VotingPage() {
     setShowConfirmDialog(true)
   }
 
-  const handleConfirmVote = async () => {
-    await new Promise(r => setTimeout(r, 500))
-    setVotedFor(selectedCandidate.id)
-    setShowConfirmDialog(false)
-    setShowResults(true)
-  }
-
+  // Fungsi Face Verification (Simulasi)
   const handleVerifyFace = async () => {
+    // Di sini nanti logika Python Face Recognition Anda dipanggil
+    // Untuk sekarang kita simulasi delay saja
     await new Promise(r => setTimeout(r, 800))
     setFaceVerified(true)
   }
@@ -70,8 +65,8 @@ export default function VotingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">
-      {/* Header with back button */}
+    <div className="min-h-screen bg-linear-to-b from-background to-secondary/20">
+      {/* Header */}
       <div className="border-b border-border bg-card shadow-sm sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href={`/elections/${election.id}`} className="inline-flex items-center gap-2 text-primary hover:text-primary/80 text-sm font-medium">
@@ -85,15 +80,21 @@ export default function VotingPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        {election.status !== 'Active' ? (
+        {!account ? (
+             <Alert className="border-red-200 bg-red-50">
+             <AlertDescription className="text-red-900">
+               Please connect your wallet first to vote.
+             </AlertDescription>
+           </Alert>
+        ) : election.status !== 'Active' ? (
           <Alert className="border-amber-200 bg-amber-50">
             <AlertDescription className="text-amber-900">
-              Voting is {election.status === 'Upcoming' ? 'not open yet' : 'closed'} for this election
+              Voting is {election.status === 'Upcoming' ? 'not open yet' : 'closed'}
             </AlertDescription>
           </Alert>
         ) : !showResults ? (
           <>
-            {/* Face Verification Step */}
+            {/* Step 1: Face Verification */}
             <Card className={`border-2 transition-all ${faceVerified ? 'border-green-200 bg-green-50' : 'border-border'}`}>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -107,53 +108,47 @@ export default function VotingPage() {
                   {faceVerified && <CheckCircle className="w-5 h-5 text-green-600" />}
                 </div>
               </CardHeader>
-              {!faceVerified && (
+              {!faceVerified ? (
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-4">
-                    For security, we require face verification to ensure voting integrity. Your biometric data is encrypted and secure.
+                    Ensure you are in a well-lit room. Look straight at the camera.
                   </p>
                   <Dialog>
                     <DialogTrigger asChild>
-                      <Button className="bg-primary hover:bg-primary/90" onClick={handleVerifyFace}>
-                        Open Camera and Verify Face
+                      <Button className="bg-primary hover:bg-primary/90">
+                        Open Camera & Verify
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-md">
                       <DialogHeader>
                         <DialogTitle>Face Verification</DialogTitle>
-                        <DialogDescription>Look at the camera and wait for verification</DialogDescription>
+                        <DialogDescription>Position your face in the frame</DialogDescription>
                       </DialogHeader>
                       <div className="bg-muted rounded-lg h-64 flex items-center justify-center">
-                        <div className="text-center text-muted-foreground">
-                          <Camera className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm">Camera preview here</p>
-                        </div>
+                        <Camera className="w-12 h-12 opacity-50" />
                       </div>
-                      <Button onClick={handleVerifyFace} className="w-full bg-primary hover:bg-primary/90">
-                        Verify
-                      </Button>
+                      <Button onClick={handleVerifyFace} className="w-full">Verify Now</Button>
                     </DialogContent>
                   </Dialog>
                 </CardContent>
-              )}
-              {faceVerified && (
+              ) : (
                 <CardContent>
                   <div className="flex items-center gap-2 text-sm text-green-700">
                     <CheckCircle className="w-4 h-4" />
-                    <span>Face verification successful</span>
+                    <span>Identity Verified Successfully</span>
                   </div>
                 </CardContent>
               )}
             </Card>
 
-            {/* Voting Step */}
-            <Card>
+            {/* Step 2: Voting */}
+            <Card className={!faceVerified ? "opacity-50 pointer-events-none" : ""}>
               <CardHeader>
                 <div className="flex items-center gap-3">
                   <Users className="w-5 h-5 text-primary" />
                   <div>
-                    <CardTitle className="text-base">Step 2: Choose Your Candidate</CardTitle>
-                    <CardDescription>Select who you want to vote for</CardDescription>
+                    <CardTitle className="text-base">Step 2: Choose Candidate</CardTitle>
+                    <CardDescription>Select your preferred candidate</CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -162,14 +157,10 @@ export default function VotingPage() {
                   {candidates.map((candidate) => (
                     <Card
                       key={candidate.id}
-                      className={`cursor-pointer transition-all overflow-hidden ${
-                        votedFor === candidate.id
-                          ? 'border-green-500 border-2 bg-green-50'
-                          : 'hover:shadow-md border-border'
-                      }`}
+                      className={`cursor-pointer transition-all overflow-hidden hover:shadow-md border-border`}
                     >
-                      {/* Candidate Image */}
                       <div className="w-full h-56 bg-muted overflow-hidden">
+                         {/* Gunakan Image component Next.js jika bisa, atau img biasa */}
                         <img
                           src={candidate.image || "/placeholder.svg"}
                           alt={candidate.name}
@@ -179,30 +170,18 @@ export default function VotingPage() {
 
                       <CardHeader className="pb-3">
                         <CardTitle className="text-lg">{candidate.name}</CardTitle>
-                        <Badge variant="outline" className="w-fit">
-                          {candidate.party}
-                        </Badge>
+                        <Badge variant="outline" className="w-fit">{candidate.party}</Badge>
                       </CardHeader>
 
                       <CardContent className="space-y-3">
                         <p className="text-sm text-foreground">{candidate.description}</p>
-
-                        {votedFor !== candidate.id && (
-                          <Button
-                            variant="outline"
-                            disabled={!faceVerified || votedFor !== null}
-                            onClick={() => handleVoteClick(candidate)}
-                            className="w-full"
-                          >
-                            Vote for {candidate.name}
-                          </Button>
-                        )}
-                        {votedFor === candidate.id && (
-                          <div className="flex items-center gap-2 text-sm text-green-700 bg-green-100 px-3 py-2 rounded-md font-medium">
-                            <CheckCircle className="w-4 h-4" />
-                            <span>Vote recorded!</span>
-                          </div>
-                        )}
+                        <Button
+                          variant="outline"
+                          onClick={() => handleVoteClick(candidate)}
+                          className="w-full"
+                        >
+                          Select {candidate.name}
+                        </Button>
                       </CardContent>
                     </Card>
                   ))}
@@ -210,95 +189,85 @@ export default function VotingPage() {
               </CardContent>
             </Card>
 
-            {/* Confirmation Dialog */}
+            {/* Confirmation Dialog dengan Integrasi Blockchain */}
             <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Confirm Your Vote</DialogTitle>
-                  <DialogDescription>You're about to vote for:</DialogDescription>
+                  <DialogTitle>Confirm Vote</DialogTitle>
+                  <DialogDescription>This action cannot be undone.</DialogDescription>
                 </DialogHeader>
+                
                 {selectedCandidate && (
                   <div className="space-y-4">
                     <div className="bg-secondary p-4 rounded-lg">
-                      <p className="text-lg font-semibold text-foreground">{selectedCandidate.name}</p>
+                      <p className="text-lg font-bold">{selectedCandidate.name}</p>
                       <p className="text-sm text-muted-foreground">{selectedCandidate.party}</p>
                     </div>
-                    <p className="text-sm text-muted-foreground">Please review before confirming. Your vote cannot be changed after submission.</p>
-                    <div className="flex gap-3">
-                      <Button variant="outline" onClick={() => setShowConfirmDialog(false)} className="flex-1">
-                        Cancel
-                      </Button>
-                      <Button onClick={handleConfirmVote} className="flex-1 bg-primary hover:bg-primary/90">
-                        Confirm Vote
-                      </Button>
-                    </div>
+
+                    {/* --- TRANSACTION BUTTON (INTI INTEGRASI) --- */}
+                    <TransactionButton
+                      transaction={() => {
+                        // PENTING: Konversi ID ke BigInt sesuai Solidity uint256
+                        // Pastikan ID di mock-data Anda bisa dikonversi ke angka (misal "1", "2")
+                        // Jika ID di mock data "c1", Anda harus mapping ke integer 1 dulu.
+                        const _electionId = BigInt(election.id); 
+                        const _candidateId = BigInt(selectedCandidate.id);
+
+                        return prepareContractCall({
+                          contract: votingContract,
+                          method: "function vote(uint256 _electionId, uint256 _candidateId)",
+                          params: [_electionId, _candidateId],
+                        });
+                      }}
+                      onTransactionConfirmed={(receipt) => {
+                        console.log("Vote confirmed:", receipt);
+                        setVotedFor(selectedCandidate.id);
+                        setShowConfirmDialog(false);
+                        setShowResults(true);
+                      }}
+                      onError={(error) => {
+                        console.error("Vote failed:", error);
+                        alert(`Voting Gagal: ${error.message}`);
+                      }}
+                      theme="dark" // Sesuaikan tema
+                      className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      Confirm & Vote On-Chain
+                    </TransactionButton>
+                    {/* ------------------------------------------- */}
+                    
+                    <Button 
+                      variant="ghost" 
+                      onClick={() => setShowConfirmDialog(false)} 
+                      className="w-full"
+                    >
+                      Cancel
+                    </Button>
                   </div>
                 )}
               </DialogContent>
             </Dialog>
           </>
         ) : (
-          <>
-            {/* Vote Confirmation Screen */}
-            <Card className="border-green-200 bg-green-50">
-              <CardHeader className="text-center pb-6">
+          // Tampilan setelah sukses voting (Sama seperti sebelumnya)
+          <Card className="border-green-200 bg-green-50">
+             <CardHeader className="text-center pb-6">
                 <div className="flex justify-center mb-4">
                   <CheckCircle className="w-12 h-12 text-green-600" />
                 </div>
-                <CardTitle className="text-2xl">Thank You for Voting!</CardTitle>
-                <CardDescription className="text-base mt-2">Your vote has been successfully recorded</CardDescription>
-              </CardHeader>
-              <CardContent className="text-center space-y-4">
-                <div className="bg-white p-6 rounded-lg border border-green-200">
-                  <p className="text-sm text-muted-foreground mb-2">You voted for:</p>
-                  <p className="text-xl font-bold text-foreground">{selectedCandidate?.name}</p>
-                  <p className="text-sm text-muted-foreground">{selectedCandidate?.party}</p>
+                <CardTitle className="text-2xl">Voting Recorded on Blockchain!</CardTitle>
+                <CardDescription>Your transaction hash has been verified.</CardDescription>
+             </CardHeader>
+             <CardContent className="text-center">
+                <div className="bg-white p-6 rounded-lg border border-green-200 mb-4">
+                  <p className="text-sm text-muted-foreground">You voted for:</p>
+                  <p className="text-xl font-bold">{selectedCandidate?.name}</p>
                 </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Your vote is secure and encrypted. The counting will begin after voting closes. Thank you for participating in this important democratic process.
-                </p>
-              </CardContent>
-            </Card>
-
-            {/* Results Preview */}
-            <div className="space-y-4">
-              <h2 className="text-lg font-semibold text-foreground">Live Results</h2>
-              {candidates.map((candidate) => {
-                const percentage = candidate.votes || 0
-                return (
-                  <Card key={candidate.id}>
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-base">{candidate.name}</CardTitle>
-                        <span className="text-lg font-bold text-primary">{percentage}%</span>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                        <div
-                          className="bg-primary h-full rounded-full transition-all"
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">{candidate.totalVotes} votes cast</p>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={handleBackToElection} className="flex-1">
-                Back to Election
-              </Button>
-              <Link href="/dashboard" className="flex-1">
-                <Button className="w-full bg-primary hover:bg-primary/90">
-                  Return to Dashboard
-                </Button>
-              </Link>
-            </div>
-          </>
+                <Link href="/dashboard">
+                  <Button className="w-full">Return to Dashboard</Button>
+                </Link>
+             </CardContent>
+          </Card>
         )}
       </div>
     </div>
