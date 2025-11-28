@@ -26,19 +26,23 @@ embedder = FaceEmbedder(model_name="FaceNet")
 calculator = SimilarityCalculator()
 print("[INFO] Components initialized successfully")
 
-# Load reference embedding from JSON
-EMBEDDING_FILE = "data/wete_embedding.json"
-print(f"[INFO] Loading reference embedding from {EMBEDDING_FILE}...")
+# Load reference embedding from JSON (optional - can use embeddings from request)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+EMBEDDING_FILE = os.path.join(BASE_DIR, "data", "wete_embedding.json")
+print(f"[INFO] Looking for reference embedding at {EMBEDDING_FILE}...")
 
-if not os.path.exists(EMBEDDING_FILE):
-    print(f"[ERROR] Embedding file not found: {EMBEDDING_FILE}")
-    print("[ERROR] Please generate embedding first using generate_embedding.py")
-    exit(1)
+ref_embedding = None
 
-with open(EMBEDDING_FILE, 'r') as f:
-    embedding_data = json.load(f)
-    ref_embedding = np.array(embedding_data['embedding_vector'])
-    print(f"[INFO] Reference embedding loaded: {len(ref_embedding)}-dimensional vector")
+if os.path.exists(EMBEDDING_FILE):
+    try:
+        with open(EMBEDDING_FILE, 'r') as f:
+            embedding_data = json.load(f)
+            ref_embedding = np.array(embedding_data['embedding_vector'])
+            print(f"[INFO] Reference embedding loaded: {len(ref_embedding)}-dimensional vector")
+    except Exception as e:
+        print(f"[WARNING] Failed to load reference embedding: {e}")
+else:
+    print(f"[INFO] No default embedding file found. Will use embeddings from requests.")
 
 def decode_base64_image(base64_string):
     """
@@ -75,10 +79,12 @@ def verify_face():
         if 'reference_embedding' in data and data['reference_embedding']:
             reference_embedding = np.array(data['reference_embedding'])
             print(f"[INFO] Using reference embedding from request (dimension: {len(reference_embedding)})")
-        else:
+        elif ref_embedding is not None:
             # Fallback to default reference embedding (wete_embedding.json)
             reference_embedding = ref_embedding
             print(f"[INFO] Using default reference embedding from file")
+        else:
+            return jsonify({'error': 'No reference embedding provided and no default available'}), 400
         
         # Decode base64 image
         image = decode_base64_image(data['image'])
@@ -231,12 +237,18 @@ def health_check():
     }), 200
 
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+    
     print("\n" + "="*70)
     print("FACE RECOGNITION API SERVER")
     print("="*70)
-    print(f"Server starting on http://localhost:5000")
-    print(f"Reference embedding: {EMBEDDING_FILE}")
-    print(f"Embedding dimension: {len(ref_embedding)}")
+    print(f"Server starting on http://0.0.0.0:{port}")
+    print(f"Debug mode: {debug}")
+    if ref_embedding is not None:
+        print(f"Reference embedding loaded: {len(ref_embedding)}-dim")
+    else:
+        print("No default embedding (will use embeddings from requests)")
     print("="*70 + "\n")
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=debug)

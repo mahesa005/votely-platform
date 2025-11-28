@@ -192,7 +192,7 @@ export function FaceScanner({
 
           // Check if similarity meets threshold
           if (currentSimilarity >= 0.55) {
-            setStatusMessage('Almost there...')
+            setStatusMessage('Verifying...')
             setConsecutiveSuccess(prev => prev + 1)
             
             // Auto-verify after 3 consecutive successful frames
@@ -305,7 +305,7 @@ export function FaceScanner({
                     )}
                     {mode === 'verify' && consecutiveSuccess > 0 && (
                       <p className="text-xs text-green-400 font-sans antialiased">
-                        {consecutiveSuccess}/3 frames verified
+                        {Math.round((consecutiveSuccess / 3) * 100)}% verified
                       </p>
                     )}
                   </div>

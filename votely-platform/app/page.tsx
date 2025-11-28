@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Button } from '@/components/ui/Button'
-import { Vote, Shield, Fingerprint, Link as LinkIcon, ChevronRight, Sparkles, CheckCircle, ArrowRight } from 'lucide-react'
+import { Shield, Fingerprint, Link as LinkIcon, ChevronRight, Sparkles, CheckCircle, ArrowRight } from 'lucide-react'
 
 export default function Home() {
   const [mounted, setMounted] = useState(false)
@@ -18,13 +19,13 @@ export default function Home() {
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-[#DDE6F4]/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1FD7BE] to-[#17c5ae] flex items-center justify-center shadow-lg shadow-[#1FD7BE]/25">
-              <Vote className="w-5 h-5 text-white" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-lg font-bold text-[#3A3F52] tracking-tight">Votely</span>
-              <span className="text-[10px] text-[#9AA3B8] -mt-1 font-medium tracking-wider uppercase">E-Voting Platform</span>
-            </div>
+            <Image
+              src="/logo-with-text.png"
+              alt="Votely Logo"
+              width={140}
+              height={40}
+              priority
+            />
           </div>
           <div className="flex items-center gap-3">
             <Link 
@@ -119,7 +120,13 @@ export default function Home() {
                     {/* Center Icon */}
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="w-32 h-32 rounded-3xl bg-gradient-to-br from-[#1FD7BE] to-[#17c5ae] flex items-center justify-center shadow-2xl shadow-[#1FD7BE]/40">
-                        <Vote className="w-16 h-16 text-white" />
+                        <Image
+                          src="/logo-only.png"
+                          alt="Votely"
+                          width={80}
+                          height={80}
+                          className="brightness-0 invert"
+                        />
                       </div>
                     </div>
 
@@ -220,10 +227,12 @@ export default function Home() {
       <footer className="py-8 px-4 sm:px-6 border-t border-[#DDE6F4]">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#1FD7BE] to-[#17c5ae] flex items-center justify-center">
-              <Vote className="w-4 h-4 text-white" />
-            </div>
-            <span className="font-bold text-[#3A3F52]">Votely</span>
+            <Image
+              src="/logo-with-text.png"
+              alt="Votely Logo"
+              width={120}
+              height={35}
+            />
           </div>
           <p className="text-sm text-[#9AA3B8]">
             © 2025 Votely. Secure E-Voting Platform.

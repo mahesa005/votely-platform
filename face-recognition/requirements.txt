@@ -1,17 +1,18 @@
-# Core dependencies
-opencv-python>=4.8.0
+# Core dependencies (headless untuk Docker - tanpa GUI)
+opencv-python-headless>=4.8.0
 numpy>=1.24.0,<2.2.0
 scipy>=1.11.0
-tensorflow>=2.15.0,<2.20.0
+tensorflow-cpu>=2.15.0,<2.20.0
 
 # Flask API server
 flask>=3.0.0
 flask-cors>=4.0.0
+gunicorn>=21.0.0
 
 # Face detection
 mediapipe>=0.10.0,<0.11.0
 
-# Protobuf compatibility fix for mediapipe
+# Protobuf compatibility
 protobuf>=4.25.0,<5.0.0
 
 # Face recognition models
