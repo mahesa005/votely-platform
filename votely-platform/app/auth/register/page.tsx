@@ -153,6 +153,7 @@ export default function RegisterPage() {
             onSkip={handleFaceVerified}
             title="Registrasi Wajah"
             description="Wajah Anda akan digunakan untuk memverifikasi identitas saat pemilihan"
+            nik={formData.nik}
           />
           <Button 
             variant="outline" 

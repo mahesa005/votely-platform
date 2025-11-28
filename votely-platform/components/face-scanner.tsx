@@ -11,14 +11,20 @@ interface FaceScannerProps {
   onSkip?: () => void
   title?: string
   description?: string
+  nik?: string  // NIK for face verification against database
 }
 
-export function FaceScanner({ onSuccess, onSkip, title = 'Face Verification', description = 'Position your face in the center and hold still' }: FaceScannerProps) {
+export function FaceScanner({ onSuccess, onSkip, title = 'Face Verification', description = 'Position your face in the center and hold still', nik }: FaceScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [scanned, setScanned] = useState(false)
+  const [scanning, setScanning] = useState(false)
+  const [cameraReady, setCameraReady] = useState(false)
   const [error, setError] = useState('')
   const [verifying, setVerifying] = useState(false)
+  const [similarity, setSimilarity] = useState<number | null>(null)
+  const [consecutiveSuccess, setConsecutiveSuccess] = useState(0)
+  const verifyingRef = useRef(false)
 
   useEffect(() => {
     if (!scanning) return
@@ -29,7 +35,7 @@ export function FaceScanner({ onSuccess, onSkip, title = 'Face Verification', de
       try {
         console.log('Requesting camera access...')
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
         })
         
         console.log('Camera access granted, stream:', stream)
@@ -75,44 +81,104 @@ export function FaceScanner({ onSuccess, onSkip, title = 'Face Verification', de
     }
   }, [scanning])
 
-  const handleStartScan = () => {
-    try {
-      setError('')
-      setVerifying(true)
-      
-      // Open face verification popup window
-      const width = 720
-      const height = 640
-      const left = (window.screen.width - width) / 2
-      const top = (window.screen.height - height) / 2
-      
-      const popup = window.open(
-        'http://localhost:5000/webcam-verify',
-        'Face Verification',
-        `width=${width},height=${height},left=${left},top=${top},resizable=no,scrollbars=no`
-      )
-      
-      if (!popup) {
-        setError('Please allow popups for face verification.')
-        setVerifying(false)
-        return
-      }
-      
-      // Check if popup is closed without verification
-      const checkClosed = setInterval(() => {
-        if (popup.closed) {
-          clearInterval(checkClosed)
-          if (verifying && !scanned) {
-            setVerifying(false)
-            setError('Verification cancelled.')
-          }
+  // Auto-verify every 500ms when camera is ready
+  useEffect(() => {
+    if (!cameraReady || scanned) return
+
+    const interval = setInterval(async () => {
+      // Skip if already verifying
+      if (verifyingRef.current) return
+
+      try {
+        verifyingRef.current = true
+        
+        if (!videoRef.current || !canvasRef.current) {
+          verifyingRef.current = false
+          return
         }
-      }, 500)
-      
-    } catch (err) {
-      setError('Failed to start face verification.')
-      setVerifying(false)
-    }
+
+        const canvas = canvasRef.current
+        const video = videoRef.current
+        const context = canvas.getContext('2d')
+
+        if (!context) {
+          verifyingRef.current = false
+          return
+        }
+
+        // Capture frame from video
+        context.drawImage(video, 0, 0, canvas.width, canvas.height)
+        const imageData = canvas.toDataURL('image/jpeg', 0.95) // High quality 95%
+
+        // Send to backend API with NIK
+        const response = await fetch('/api/face-verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: imageData, nik })
+        })
+
+        if (!response.ok) {
+          throw new Error('Verification failed')
+        }
+
+        const result = await response.json()
+        const currentSimilarity = result.similarity
+
+        setSimilarity(currentSimilarity)
+
+        // Check if similarity meets threshold
+        if (currentSimilarity >= 0.55) {
+          setConsecutiveSuccess(prev => prev + 1)
+          
+          // Auto-verify after 3 consecutive successful frames
+          if (consecutiveSuccess >= 2) { // Will be 3 after this increment
+            // Stop camera immediately when verified
+            if (videoRef.current?.srcObject) {
+              const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
+              tracks.forEach(track => track.stop())
+              videoRef.current.srcObject = null
+            }
+            setScanned(true)
+            setVerifying(false)
+            setScanning(false)
+            setCameraReady(false)
+            onSuccess()
+          }
+        } else {
+          setConsecutiveSuccess(0)
+        }
+
+        verifyingRef.current = false
+        
+      } catch (err) {
+        console.error('Verification error:', err)
+        verifyingRef.current = false
+        // Don't set error for individual frame failures
+      }
+    }, 500) // Send frame every 500ms (2 fps)
+
+    return () => clearInterval(interval)
+  }, [cameraReady, scanned, consecutiveSuccess, onSuccess])
+
+  const handleStartScan = () => {
+    setError('')
+    setScanning(true)
+  }
+
+  // Get status message based on similarity
+  const getStatusMessage = () => {
+    if (similarity === null) return 'Scanning...'
+    if (similarity >= 0.55) return 'Almost there...'
+    if (similarity >= 0.40) return 'Adjust position'
+    return 'Move closer to camera'
+  }
+
+  // Get color indicator based on similarity
+  const getColorClass = () => {
+    if (similarity === null) return 'text-gray-400'
+    if (similarity >= 0.55) return 'text-green-500'
+    if (similarity >= 0.40) return 'text-yellow-500'
+    return 'text-red-500'
   }
 
   if (scanned) {
@@ -164,19 +230,25 @@ export function FaceScanner({ onSuccess, onSkip, title = 'Face Verification', de
                 </div>
               )}
               {cameraReady && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-48 h-56 border-2 border-primary rounded-lg opacity-75"></div>
-                </div>
+                <>
+                  {/* Status overlay */}
+                  <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
+                    <div className="inline-block bg-black bg-opacity-70 px-4 py-2 rounded-lg">
+                      {consecutiveSuccess > 0 && (
+                        <p className="text-xs text-green-400 font-sans antialiased">
+                          {consecutiveSuccess}/3 frames verified
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
             </div>
-            <canvas ref={canvasRef} className="hidden" width={640} height={480} />
+            <canvas ref={canvasRef} className="hidden" width={1280} height={720} />
             {cameraReady && (
-              <>
-                <p className="text-xs text-muted-foreground text-center">Align your face within the frame</p>
-                <Button onClick={handleScan} className="w-full bg-primary hover:bg-primary/90">
-                  Capture Face
-                </Button>
-              </>
+              <p className="text-xs text-muted-foreground text-center">
+                Hold still while we verify your identity...
+              </p>
             )}
           </div>
         ) : (

@@ -28,6 +28,10 @@ export async function POST(request: Request) {
         return NextResponse.json(result, { status: 201 });
 
     } catch (error: any) {
+        // Debug logging
+        console.error("=== REGISTER ERROR ===");
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
 
         if (error.message === "NIK sudah terdaftar sebagai akun.") {
         return NextResponse.json({ error: error.message }, { status: 409 }); // Conflict
@@ -35,9 +39,12 @@ export async function POST(request: Request) {
         if (error.message.includes("tidak ditemukan dalam database")) {
         return NextResponse.json({ error: error.message }, { status: 404 }); // Not Found
         }
+        if (error.message.includes("Data tidak sesuai")) {
+        return NextResponse.json({ error: error.message }, { status: 400 }); // Bad Request - data mismatch
+        }
 
         return NextResponse.json(
-        { error: "Terjadi kesalahan internal server." },
+        { error: `Terjadi kesalahan internal server: ${error.message}` },
         { status: 500 }
         );
     }
