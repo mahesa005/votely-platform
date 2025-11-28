@@ -3,6 +3,10 @@ import { getCurrentUserFromToken } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 
+// Force dynamic rendering - no caching
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * Check if user has voted in an election
  * GET /api/vote/check?electionId=xxx
@@ -27,6 +31,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    console.log('[VoteCheck] Checking vote for user:', user.id, 'name:', user.name);
+
     const { searchParams } = new URL(request.url);
     const electionId = searchParams.get('electionId');
 
@@ -50,8 +56,10 @@ export async function GET(request: NextRequest) {
       }
     });
 
+    console.log('[VoteCheck] Vote result for user', user.id, ':', vote ? 'HAS VOTED' : 'NOT VOTED');
+
     if (vote) {
-      return NextResponse.json({
+      const response = NextResponse.json({
         success: true,
         data: {
           hasVoted: true,
@@ -61,9 +69,11 @@ export async function GET(request: NextRequest) {
           votedAt: vote.castAt.toISOString()
         }
       });
+      response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+      return response;
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       data: {
         hasVoted: false,
@@ -73,6 +83,8 @@ export async function GET(request: NextRequest) {
         votedAt: null
       }
     });
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    return response;
 
   } catch (error: any) {
     console.error('Vote check error:', error);

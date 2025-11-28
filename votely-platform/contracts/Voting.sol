@@ -40,6 +40,7 @@ contract Voting {
     event ElectionCreated(uint256 indexed electionId, string name, uint256 startTime, uint256 endTime);
     event CandidateAdded(uint256 indexed electionId, uint256 candidateId, string name, string party);
     event Voted(uint256 indexed electionId, uint256 indexed candidateId, address indexed voter);
+    event VotedFor(uint256 indexed electionId, uint256 indexed candidateId, address indexed voter, address submittedBy);
     event ElectionStatusChanged(uint256 indexed electionId, bool isActive);
 
     // Modifiers
@@ -118,7 +119,7 @@ contract Voting {
     }
 
     /**
-     * @dev Melakukan voting
+     * @dev Melakukan voting langsung (voter membayar gas sendiri)
      */
     function vote(uint256 _electionId, uint256 _candidateId) 
         public 
@@ -134,6 +135,28 @@ contract Voting {
         elections[_electionId].totalVotes++;
 
         emit Voted(_electionId, _candidateId, msg.sender);
+    }
+
+    /**
+     * @dev Melakukan voting atas nama voter (admin membayar gas)
+     * Ini memungkinkan gasless voting dimana admin submit transaksi atas nama user
+     */
+    function voteFor(uint256 _electionId, uint256 _candidateId, address _voter) 
+        public 
+        onlyAdmin
+        electionExists(_electionId) 
+        electionActive(_electionId) 
+    {
+        require(_voter != address(0), "Invalid voter address");
+        require(!hasVoted[_electionId][_voter], "Voter already voted in this election");
+        require(_candidateId > 0 && _candidateId <= elections[_electionId].candidateCount, "Invalid candidate");
+
+        hasVoted[_electionId][_voter] = true;
+        voterChoice[_electionId][_voter] = _candidateId;
+        candidates[_electionId][_candidateId].voteCount++;
+        elections[_electionId].totalVotes++;
+
+        emit VotedFor(_electionId, _candidateId, _voter, msg.sender);
     }
 
     /**

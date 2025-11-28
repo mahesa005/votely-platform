@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -37,6 +37,12 @@ type Election = {
   totalVotes?: number
 }
 
+type UserInfo = {
+  id: string
+  name: string
+  role: string
+}
+
 export default function VotingPage() {
   const params = useParams()
   const router = useRouter()
@@ -54,16 +60,51 @@ export default function VotingPage() {
   const [hasAlreadyVoted, setHasAlreadyVoted] = useState(false)
   const [userVotedCandidateId, setUserVotedCandidateId] = useState<string | null>(null)
   const [showFaceScanner, setShowFaceScanner] = useState(false)
+  const [currentUser, setCurrentUser] = useState<UserInfo | null>(null)
   
   // State local untuk hasil
   const [showResults, setShowResults] = useState(false)
 
+  // Reset all vote-related state
+  const resetVoteState = useCallback(() => {
+    setFaceVerified(false)
+    setVotedFor(null)
+    setShowConfirmDialog(false)
+    setSelectedCandidate(null)
+    setHasAlreadyVoted(false)
+    setUserVotedCandidateId(null)
+    setShowFaceScanner(false)
+    setShowResults(false)
+  }, [])
+
   // Fetch election data and check if user already voted
   useEffect(() => {
     async function fetchElectionAndVoteStatus() {
+      // Reset state first to avoid stale data from previous user
+      resetVoteState()
+      setLoading(true)
+      
       try {
+        // Fetch current user first
+        const userResponse = await fetch('/api/auth/me', { 
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
+        })
+        const userData = await userResponse.json()
+        
+        if (userData.success && userData.data) {
+          setCurrentUser(userData.data)
+        } else {
+          // User not logged in, redirect to login
+          router.push('/auth/login')
+          return
+        }
+        
         // Fetch election with results
-        const response = await fetch(`/api/elections/${electionIdParam}?includeResults=true`)
+        const response = await fetch(`/api/elections/${electionIdParam}?includeResults=true`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
+        })
         const result = await response.json()
         
         if (result.success && result.data) {
@@ -72,9 +113,14 @@ export default function VotingPage() {
           console.error('Failed to fetch election:', result.error)
         }
 
-        // Check if user has already voted
-        const voteCheckResponse = await fetch(`/api/vote/check?electionId=${electionIdParam}`)
+        // Check if user has already voted (with cache-busting)
+        const voteCheckResponse = await fetch(`/api/vote/check?electionId=${electionIdParam}&_t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
+        })
         const voteCheckResult = await voteCheckResponse.json()
+        
+        console.log('[VotingPage] Vote check result:', voteCheckResult)
         
         if (voteCheckResult.success && voteCheckResult.data.hasVoted) {
           setHasAlreadyVoted(true)
@@ -89,7 +135,7 @@ export default function VotingPage() {
     }
 
     fetchElectionAndVoteStatus()
-  }, [electionIdParam])
+  }, [electionIdParam, resetVoteState, router])
 
   // Helper function to get election status
   const getElectionStatus = (election: Election) => {

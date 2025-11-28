@@ -43,6 +43,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log('[VoteCast] User attempting to vote:', user.id, user.name);
+
     const body = await request.json();
     const { electionId, candidateId } = body;
 
@@ -117,6 +119,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingVote) {
+      console.log('[VoteCast] User already voted in DB:', user.id);
       return NextResponse.json(
         { success: false, error: 'You have already voted in this election' },
         { status: 400 }
@@ -140,47 +143,72 @@ export async function POST(request: NextRequest) {
     const chainElectionId = election.chainElectionId;
     const chainCandidateId = (candidate as any).chainCandidateId;
 
-    console.log('Casting vote on blockchain:', {
+    console.log('[VoteCast] Casting vote on blockchain:', {
       voter: user.id,
+      voterName: user.name,
       voterWallet: user.walletAddress,
       chainElectionId: chainElectionId.toString(),
       chainCandidateId: chainCandidateId.toString(),
       paidBy: adminAccount.address
     });
 
-    // Check if already voted on blockchain (using voter's wallet address)
+    // Try to use voteFor function if available (allows voting on behalf of user)
+    // This properly records the vote for the user's wallet address
+    let receipt;
     try {
-      const hasVoted = await readContract({
+      // First try voteFor (if contract supports it)
+      const voteForTx = prepareContractCall({
         contract: votingContract,
-        method: "function hasVoted(uint256 electionId, address voter) view returns (bool)",
-        params: [chainElectionId, user.walletAddress as `0x${string}`]
+        method: "function voteFor(uint256 electionId, uint256 candidateId, address voter)",
+        params: [chainElectionId, chainCandidateId, user.walletAddress as `0x${string}`]
       });
 
-      if (hasVoted) {
-        return NextResponse.json(
-          { success: false, error: 'You have already voted on blockchain' },
-          { status: 400 }
-        );
+      receipt = await sendTransaction({
+        transaction: voteForTx,
+        account: adminAccount,
+      });
+      console.log('[VoteCast] Vote (voteFor) transaction confirmed:', receipt.transactionHash);
+    } catch (voteForError: any) {
+      console.log('[VoteCast] voteFor not available or failed, trying vote():', voteForError.message);
+      
+      // Check if admin already voted on blockchain
+      try {
+        const hasVoted = await readContract({
+          contract: votingContract,
+          method: "function hasVoted(uint256 electionId, address voter) view returns (bool)",
+          params: [chainElectionId, adminAccount.address as `0x${string}`]
+        });
+
+        if (hasVoted) {
+          console.log('[VoteCast] Admin wallet already voted on blockchain for this election');
+          // Since admin wallet already voted, we can only record in DB
+          // This is a limitation of the current contract design
+          return NextResponse.json(
+            { 
+              success: false, 
+              error: 'Already voted in this election',
+              details: 'The voting system has reached its limit for this election. Please contact administrator.'
+            },
+            { status: 400 }
+          );
+        }
+      } catch (checkError) {
+        console.log('[VoteCast] Could not check hasVoted:', checkError);
       }
-    } catch (e) {
-      console.log('Could not check hasVoted on blockchain, proceeding...');
+
+      // Fallback to regular vote function
+      const voteTx = prepareContractCall({
+        contract: votingContract,
+        method: "function vote(uint256 electionId, uint256 candidateId)",
+        params: [chainElectionId, chainCandidateId]
+      });
+
+      receipt = await sendTransaction({
+        transaction: voteTx,
+        account: adminAccount,
+      });
+      console.log('[VoteCast] Vote transaction confirmed:', receipt.transactionHash);
     }
-
-    // Cast vote on blockchain
-    // Note: The smart contract should have a function that allows admin to vote on behalf of user
-    // Or we use the voteFor function if available
-    const voteTx = prepareContractCall({
-      contract: votingContract,
-      method: "function vote(uint256 electionId, uint256 candidateId)",
-      params: [chainElectionId, chainCandidateId]
-    });
-
-    const receipt = await sendTransaction({
-      transaction: voteTx,
-      account: adminAccount, // Admin pays gas
-    });
-
-    console.log('Vote transaction confirmed:', receipt.transactionHash);
 
     // Record vote in database
     const vote = await prisma.vote.create({
@@ -191,6 +219,8 @@ export async function POST(request: NextRequest) {
         txHash: receipt.transactionHash,
       }
     });
+
+    console.log('[VoteCast] Vote recorded in DB for user:', user.id);
 
     return NextResponse.json({
       success: true,
@@ -204,9 +234,20 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Vote casting error:', error);
+    console.error('[VoteCast] Vote casting error:', error);
+    
+    // Parse blockchain errors for better user messages
+    let errorMessage = error.message || 'Failed to cast vote';
+    if (errorMessage.includes('Already voted')) {
+      errorMessage = 'Already voted in this election';
+    } else if (errorMessage.includes('Election not active')) {
+      errorMessage = 'Election is not currently active';
+    } else if (errorMessage.includes('insufficient funds')) {
+      errorMessage = 'System error - please contact administrator';
+    }
+    
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to cast vote' },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }

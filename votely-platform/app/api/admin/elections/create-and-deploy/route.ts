@@ -111,6 +111,14 @@ export async function POST(request: NextRequest) {
     // If this fails, we don't create anything in database
     console.log('Step 1: Deploying election to blockchain...');
     
+    // First, get current election count to know the next ID
+    const currentCount = await readContract({
+      contract: votingContract,
+      method: "function electionCount() view returns (uint256)",
+      params: []
+    });
+    console.log('Current election count before create:', currentCount.toString());
+    
     const createTx = prepareContractCall({
       contract: votingContract,
       method: "function createElection(string name, string description, uint256 startTime, uint256 endTime) returns (uint256)",
@@ -129,15 +137,20 @@ export async function POST(request: NextRequest) {
 
     console.log('Election deployed to blockchain:', receipt.transactionHash);
 
-    // Get the new election ID from blockchain
-    const electionCount = await readContract({
+    // Wait a moment for state to update, then get the new election count
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Get the new election ID from blockchain - should be currentCount + 1
+    const newElectionCount = await readContract({
       contract: votingContract,
       method: "function electionCount() view returns (uint256)",
       params: []
     });
 
-    const chainElectionId = electionCount;
-    console.log('Blockchain election ID:', chainElectionId);
+    // The new election ID is the new count (since IDs start at 1 and increment)
+    const chainElectionId = newElectionCount;
+    console.log('New election count after create:', newElectionCount.toString());
+    console.log('Blockchain election ID:', chainElectionId.toString());
 
     // Step 2: Add candidates to blockchain (if any)
     const candidateChainIds: Map<number, bigint> = new Map(); // orderIndex -> chainCandidateId
