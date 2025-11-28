@@ -1,0 +1,113 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { ethers } from 'ethers'
+import { prisma } from '@/lib/prisma'
+import { decryptKey } from '@/lib/crypto'
+import { VotingABI } from '@/lib/contracts/VotingABI'
+import { getCurrentUserFromToken } from "@/lib/auth";
+import { cookies } from "next/headers"
+
+export async function POST(request: NextRequest) {
+  try {
+    // 1. Get user from session
+    const cookieStore = await cookies();
+    const token = cookieStore.get("token")?.value;
+    
+    if (!token) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized - Please login first' },
+        { status: 401 }
+      )
+    }
+
+    const currentUser = await getCurrentUserFromToken(token);
+    
+    if (!currentUser) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid or expired token' },
+        { status: 401 }
+      )
+    }
+
+    const userId = currentUser.id;
+    
+    // 2. Parse request body
+    const { electionId, candidateId } = await request.json()
+    
+    if (!electionId || candidateId === undefined) {
+      return NextResponse.json(
+        { success: false, message: 'Missing electionId or candidateId' },
+        { status: 400 }
+      )
+    }
+
+    // 3. Get user from database (with encrypted private key)
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        walletAddress: true,
+        encryptedPrivateKey: true,
+      },
+    })
+
+    if (!user || !user.encryptedPrivateKey) {
+      return NextResponse.json(
+        { success: false, message: 'User wallet not found' },
+        { status: 404 }
+      )
+    }
+
+    // 4. Decrypt user's private key
+    const privateKey = decryptKey(user.encryptedPrivateKey)
+
+    // 5. Setup blockchain connection
+    const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL
+    const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS
+
+    if (!rpcUrl || !contractAddress) {
+      throw new Error('Blockchain configuration missing')
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl)
+    const userWallet = new ethers.Wallet(privateKey, provider)
+    const votingContract = new ethers.Contract(contractAddress, VotingABI, userWallet)
+
+    // 6. Submit vote transaction
+    console.log(`Submitting vote: User ${userId} voting for candidate ${candidateId} in election ${electionId}`)
+    
+    const tx = await votingContract.vote(
+      BigInt(electionId),
+      BigInt(candidateId),
+      { gasLimit: 500_000 }
+    )
+
+    console.log(`Vote transaction sent: ${tx.hash}`)
+    
+    const receipt = await tx.wait()
+    
+    if (receipt.status === 0) {
+      throw new Error('Transaction reverted on-chain')
+    }
+
+    console.log(`Vote confirmed on-chain: ${tx.hash}`)
+
+    // 7. Return success
+    return NextResponse.json({
+      success: true,
+      transactionHash: tx.hash,
+      message: 'Vote recorded on blockchain',
+    })
+
+  } catch (error: any) {
+    console.error('[ERROR] Vote API error:', error)
+    
+    return NextResponse.json(
+      { 
+        success: false, 
+        message: error.message || 'Failed to submit vote',
+        error: process.env.NODE_ENV === 'development' ? error.toString() : undefined
+      },
+      { status: 500 }
+    )
+  }
+}

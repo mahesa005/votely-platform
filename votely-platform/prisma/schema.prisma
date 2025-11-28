@@ -1,12 +1,9 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 
 model Penduduk {
@@ -15,20 +12,119 @@ model Penduduk {
   namaLengkap  String
   tanggalLahir DateTime
   alamat       String?
-  foto         String?
+  foto         Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  kabKota      String?
+  kecamatan    String?
+  kelurahan    String?
+  provinsi     String?
   user         User?
 }
 
 model User {
-  id         String   @id @default(cuid())
-  password   String
-  role       Role     @default(WARGA)
-  pendudukId String   @unique
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  penduduk   Penduduk @relation(fields: [pendudukId], references: [id], onDelete: Cascade)
+  id                  String     @id @default(cuid())
+  password            String
+  role                Role       @default(WARGA)
+  pendudukId          String     @unique
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+  walletAddress       String     @db.VarChar
+  encryptedPrivateKey String?    @db.VarChar
+  penduduk            Penduduk   @relation(fields: [pendudukId], references: [id], onDelete: Cascade)
+  auditLogs           AuditLog[]
+  createdElections    Election[] @relation("CreatedByAdmin")
+  votes               Vote[]
+}
+
+model Election {
+  id                 BigInt               @id @default(autoincrement())
+  name               String               @db.VarChar(200)
+  description        String
+  level              String               @db.VarChar(20)
+  city               String?              @db.VarChar(100)
+  province           String?              @db.VarChar(100)
+  startTime          DateTime             @map("start_time") @db.Timestamptz(6)
+  endTime            DateTime             @map("end_time") @db.Timestamptz(6)
+  chainElectionId    BigInt?              @map("chain_election_id")
+  statusOverride     String?              @map("status_override") @db.VarChar(20)
+  createdBy          String               @map("created_by")
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?            @map("deleted_at") @db.Timestamptz(6)
+  candidates         Candidate[]
+  electionStatsCache ElectionStatsCache[]
+  creator            User                 @relation("CreatedByAdmin", fields: [createdBy], references: [id])
+  votes              Vote[]
+
+  @@index([level, city, province])
+  @@index([startTime])
+  @@index([endTime])
+  @@index([deletedAt])
+  @@map("elections")
+}
+
+model Candidate {
+  id                 BigInt               @id @default(autoincrement())
+  electionId         BigInt               @map("election_id")
+  name               String               @db.VarChar(150)
+  party              String               @db.VarChar(150)
+  description        String?
+  photoUrl           String?              @map("photo_url")
+  orderIndex         Int                  @map("order_index")
+  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  chainCandidateId   BigInt?
+  election           Election             @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  electionStatsCache ElectionStatsCache[]
+  votes              Vote[]
+
+  @@index([electionId, orderIndex])
+  @@map("candidates")
+}
+
+model Vote {
+  id          BigInt    @id @default(autoincrement())
+  userId      String    @map("user_id")
+  electionId  BigInt    @map("election_id")
+  candidateId BigInt    @map("candidate_id")
+  txHash      String?   @map("tx_hash") @db.VarChar(100)
+  castAt      DateTime  @default(now()) @map("cast_at") @db.Timestamptz(6)
+  sourceIp    String?   @map("source_ip") @db.Inet
+  userAgent   String?   @map("user_agent")
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  election    Election  @relation(fields: [electionId], references: [id])
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@unique([userId, electionId])
+  @@index([electionId, candidateId])
+  @@index([txHash])
+  @@map("votes")
+}
+
+model ElectionStatsCache {
+  electionId    BigInt    @map("election_id")
+  candidateId   BigInt    @map("candidate_id")
+  votesCount    BigInt    @default(0) @map("votes_count")
+  lastUpdatedAt DateTime  @default(now()) @map("last_updated_at") @db.Timestamptz(6)
+  candidate     Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  election      Election  @relation(fields: [electionId], references: [id], onDelete: Cascade)
+
+  @@id([electionId, candidateId])
+  @@map("election_stats_cache")
+}
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  userId     String?  @map("user_id")
+  action     String   @db.VarChar(100)
+  entityType String   @map("entity_type") @db.VarChar(50)
+  entityId   String   @map("entity_id") @db.VarChar(100)
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
 }
 
 enum Role {

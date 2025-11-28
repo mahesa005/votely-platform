@@ -7,58 +7,175 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertCircle, Lock, User } from 'lucide-react'
+import { ErrorDialog } from '@/components/ui/error-dialog'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { AlertCircle, Lock, User, Wallet } from 'lucide-react'
 import { FaceScanner } from '@/components/face-scanner'
+import { useConnect } from "thirdweb/react"
+import { inAppWallet } from "thirdweb/wallets"
+import { client } from "@/lib/thirdweb"
 
 export default function LoginPage() {
   const router = useRouter()
+  const { connect } = useConnect()
+  
   const [nik, setNik] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [faceVerified, setFaceVerified] = useState(false)
   const [showFaceScanner, setShowFaceScanner] = useState(false)
+  const [isModalOpen, setIsModalOpen] = useState(false); 
+  const [modalMessage, setModalMessage] = useState("")
+  const [isConnectingWallet, setIsConnectingWallet] = useState(false);
+  const [credentialsValidated, setCredentialsValidated] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // Step 1: Validate credentials first (NIK & Password)
+  const validateCredentials = async () => {
+    if (!nik || !password) {
+      setError('Mohon isi NIK dan password Anda.')
+      return false
+    }
+
+    setIsLoading(true)
     setError('')
-    
-    if (!faceVerified) {
+
+    try {
+      // Validate credentials with server
+      const response = await fetch('/api/auth/validate-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nik, password }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'NIK atau password salah.')
+      }
+
+      // Credentials valid, check if user has face registered
+      if (!data.hasFaceRegistered) {
+        // No face registered, skip face verification and login directly
+        setIsLoading(false)
+        await performLogin()
+        return true
+      }
+
+      // Credentials valid and has face registered, proceed to face verification
+      setCredentialsValidated(true)
+      setIsLoading(false)
       setShowFaceScanner(true)
+      return true
+
+    } catch (err) {
+      console.error(err);
+      setModalMessage(err instanceof Error ? err.message : "NIK atau password salah.");
+      setIsModalOpen(true); 
+      setIsLoading(false);
+      return false
+    }
+  }
+
+  // Step 2: Perform actual login after face verification
+  const performLogin = async () => {
+    if (!nik || !password) {
+      setError('Mohon isi NIK dan password Anda.')
       return
     }
 
     setIsLoading(true)
-    await new Promise(r => setTimeout(r, 500))
 
-    const adminNik = '1234567890123456'
-    if (nik === adminNik && password) {
-      router.push('/admin')
-    } else if (nik && password) {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ nik, password }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Terjadi kesalahan saat login.')
+      }
+
+      // Auto-connect Thirdweb In-App Wallet setelah login berhasil
+      console.log('Auto-connecting Thirdweb In-App Wallet...')
+      setIsConnectingWallet(true)
+      
+      try {
+        const wallet = inAppWallet()
+        await connect(async () => {
+          // Use guest mode - simple & free, no email/phone needed
+          await wallet.connect({
+            client,
+            strategy: "guest",
+            // Guest wallet uses browser storage, unique per browser session
+          })
+          return wallet
+        })
+        console.log('Wallet connected successfully')
+      } catch (walletError) {
+        console.error('⚠️ Wallet connection failed (non-blocking):', walletError)
+        // Don't block login if wallet connection fails
+      } finally {
+        setIsConnectingWallet(false)
+      }
+
+      // Check user role and redirect accordingly
+      if (data.data?.role === "ADMIN") {
+        router.push('/admin')
+        console.log("Redirecting to /admin");
+        router.refresh()
+        return
+      }
+
       router.push('/dashboard')
-    } else {
-      setError('Please enter both NIK and password')
+      console.log("Redirecting to /dashboard");
+      router.refresh()
+    } catch (err) {
+      console.error(err);
+      setModalMessage(err instanceof Error ? err.message : "Terjadi kesalahan tak terduga.");
+      setIsModalOpen(true); 
+      setIsLoading(false);
+    }
+  }
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setIsModalOpen(false);
+    
+    if (!nik || !password) {
+      setError('Mohon isi NIK dan password Anda.')
+      return
     }
 
-    setIsLoading(false)
+    // Validate credentials first, then show face scanner if valid
+    await validateCredentials()
+  }
+
+  const handleFaceVerified = async () => {
+    setFaceVerified(true)
+    setShowFaceScanner(false)
+    await performLogin()
   }
 
   if (showFaceScanner && !faceVerified) {
     return (
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="border-b border-border bg-secondary/50 py-6">
-          <CardTitle className="text-2xl">Verify Your Identity</CardTitle>
-          <CardDescription>Facial recognition is required for security</CardDescription>
+          <CardTitle className="text-2xl">Verifikasi Identitas Anda</CardTitle>
+          <CardDescription>Penggunaan pengenalan wajah diperlukan demi keamanan</CardDescription>
         </CardHeader>
         <CardContent className="pt-6">
           <FaceScanner 
-            onSuccess={() => {
-              setFaceVerified(true)
-              setShowFaceScanner(false)
-            }}
-            title="Face Verification"
-            description="Position your face in the center for verification"
+            onSuccess={handleFaceVerified}
+            title="Verifikasi Wajah"
+            description="Posisikan wajah Anda di tengah untuk verifikasi"
+            nik={nik}
           />
           <Button 
             variant="outline" 
@@ -68,7 +185,7 @@ export default function LoginPage() {
               setFaceVerified(false)
             }}
           >
-            Back
+            Kembali
           </Button>
         </CardContent>
       </Card>
@@ -76,10 +193,16 @@ export default function LoginPage() {
   }
 
   return (
+    <> 
+      <ErrorDialog 
+        isOpen={isModalOpen} 
+        message={modalMessage} 
+        onClose={() => setIsModalOpen(false)} 
+      />
     <Card className="w-full max-w-md shadow-lg">
       <CardHeader className="border-b border-border bg-secondary/50 py-6">
-        <CardTitle className="text-2xl">Welcome to Votely</CardTitle>
-        <CardDescription>Sign in to participate in elections or manage the voting process</CardDescription>
+        <CardTitle className="text-2xl">Selamat Datang di Platform Votely</CardTitle>
+        <CardDescription>Masuk untuk berpartisipasi dalam pemilihan atau mengelola proses pemungutan suara</CardDescription>
       </CardHeader>
       <CardContent className="pt-6">
         <form onSubmit={handleLogin} className="space-y-5">
@@ -92,17 +215,17 @@ export default function LoginPage() {
 
           {faceVerified && (
             <Alert className="bg-green-50 border-green-200">
-              <AlertDescription className="text-green-800 text-sm">✓ Face verified successfully</AlertDescription>
+              <AlertDescription className="text-green-800 text-sm">Face verified successfully</AlertDescription>
             </Alert>
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="nik" className="text-sm font-medium">NIK (National Identification)</Label>
+            <Label htmlFor="nik" className="text-sm font-medium">NIK (Nomor Induk Kependudukan)</Label>
             <div className="relative">
               <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 id="nik"
-                placeholder="Enter your NIK"
+                placeholder="Masukkan NIK Anda"
                 value={nik}
                 onChange={(e) => setNik(e.target.value)}
                 className="pl-10"
@@ -127,30 +250,36 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="bg-secondary/60 rounded-lg p-4 text-sm text-secondary-foreground">
-            <p className="font-medium mb-1">Demo Credentials:</p>
-            <p className="text-xs">Admin: 1234567890123456 / any password</p>
-            <p className="text-xs">Voter: any other NIK / any password</p>
-          </div>
-
           <Button
             type="submit"
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium h-10"
-            disabled={isLoading}
+            disabled={isLoading || isConnectingWallet}
           >
-            {isLoading ? 'Signing in...' : faceVerified ? 'Complete Login' : 'Sign In'}
+            {isConnectingWallet ? (
+              <>
+                <Wallet className="w-4 h-4 mr-2 animate-pulse" />
+                Connecting Wallet...
+              </>
+            ) : isLoading ? (
+              'Proses...'
+            ) : faceVerified ? (
+              'Login Selesai'
+            ) : (
+              'Masuk'
+            )}
           </Button>
         </form>
 
         <div className="mt-6 pt-6 border-t border-border">
-          <p className="text-sm text-muted-foreground text-center mb-4">Don't have an account?</p>
+          <p className="text-sm text-muted-foreground text-center mb-4">Belum punya akun?</p>
           <Link href="/auth/register">
             <Button variant="outline" className="w-full" disabled={isLoading}>
-              Register as Voter
+              Daftar sebagai Pemilih
             </Button>
           </Link>
         </div>
       </CardContent>
     </Card>
+    </>
   )
 }

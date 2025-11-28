@@ -21,21 +21,9 @@ class FaceAligner:
         """
         self.target_size = target_size or config.FACE_SIZE
         
-        # Initialize facial landmark detector (MediaPipe)
-        try:
-            import mediapipe as mp
-            self.mp_face_mesh = mp.solutions.face_mesh
-            self.face_mesh = self.mp_face_mesh.FaceMesh(
-                static_image_mode=True,
-                max_num_faces=1,
-                refine_landmarks=True,
-                min_detection_confidence=0.5
-            )
-            self.use_landmarks = True
-            print("[INFO] Initialized FaceAligner with MediaPipe landmarks")
-        except:
-            self.use_landmarks = False
-            print("[INFO] Initialized FaceAligner without landmarks (basic alignment)")
+        # Use basic alignment only (no MediaPipe to avoid compatibility issues)
+        self.use_landmarks = False
+        print("[INFO] Initialized FaceAligner with basic alignment (no landmarks)")
     
     def align_face(self, image: np.ndarray, bbox: Tuple[int, int, int, int]) -> Optional[np.ndarray]:
         """
