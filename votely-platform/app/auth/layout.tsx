@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Shield, Fingerprint, Vote, Lock } from 'lucide-react'
+import Image from 'next/image'
+import { Shield, Fingerprint, Lock } from 'lucide-react'
 
 function FloatingOrb({ className, delay = 0 }: { className?: string; delay?: number }) {
   return (
@@ -56,16 +57,14 @@ export default function AuthLayout({
           {/* Logo */}
           <div className={`transition-all duration-700 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
             <Link href="/" className="inline-flex items-center gap-3 group">
-              <div className="relative">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#1FD7BE] to-[#0fa89a] flex items-center justify-center shadow-lg shadow-[#1FD7BE]/20 group-hover:shadow-[#1FD7BE]/40 transition-shadow">
-                  <span className="text-white font-bold text-2xl tracking-tight">V</span>
-                </div>
-                <div className="absolute -inset-1 rounded-xl bg-gradient-to-br from-[#1FD7BE] to-[#6366F1] opacity-0 group-hover:opacity-30 blur transition-opacity" />
-              </div>
-              <div>
-                <span className="text-2xl font-bold text-white tracking-tight">Votely</span>
-                <span className="block text-xs text-[#1FD7BE] font-medium tracking-widest uppercase">Blockchain Voting</span>
-              </div>
+              <Image
+                src="/logo-with-text.png"
+                alt="Votely Logo"
+                width={180}
+                height={50}
+                className="brightness-0 invert"
+                priority
+              />
             </Link>
           </div>
           
@@ -133,10 +132,13 @@ export default function AuthLayout({
         {/* Mobile Logo */}
         <div className="lg:hidden p-6 relative z-20">
           <Link href="/" className="inline-flex items-center gap-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1FD7BE] to-[#0fa89a] flex items-center justify-center">
-              <span className="text-white font-bold text-xl">V</span>
-            </div>
-            <span className="text-xl font-bold text-[#3A3F52]">Votely</span>
+            <Image
+              src="/logo-with-text.png"
+              alt="Votely Logo"
+              width={140}
+              height={40}
+              priority
+            />
           </Link>
         </div>
         
