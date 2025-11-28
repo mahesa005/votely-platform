@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
     // Use transaction to ensure atomicity
     console.log('Step 3: Creating election in database...');
     
-    const election = await prisma.$transaction(async (tx) => {
+    const election = await prisma.$transaction(async (tx: any) => {
       // Create election
       const newElection = await tx.election.create({
         data: {
