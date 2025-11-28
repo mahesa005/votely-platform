@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,6 +15,12 @@ type ElectionFormProps = {
   submitLabel?: string
 }
 
+export type CandidateFormData = {
+  name: string
+  party: string
+  description: string
+}
+
 export type ElectionFormData = {
   name: string
   description: string
@@ -22,6 +29,7 @@ export type ElectionFormData = {
   city: string
   startTime: string
   endTime: string
+  candidates: CandidateFormData[]
 }
 
 const PROVINCES = [
@@ -50,6 +58,7 @@ export default function ElectionForm({ onSubmit, initialData, submitLabel = 'Cre
     city: initialData?.city || '',
     startTime: initialData?.startTime || '',
     endTime: initialData?.endTime || '',
+    candidates: initialData?.candidates || [],
   })
   
   const [loading, setLoading] = useState(false)
@@ -58,6 +67,29 @@ export default function ElectionForm({ onSubmit, initialData, submitLabel = 'Cre
   const handleChange = (field: keyof ElectionFormData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     setError('')
+  }
+
+  const addCandidate = () => {
+    setFormData(prev => ({
+      ...prev,
+      candidates: [...prev.candidates, { name: '', party: '', description: '' }]
+    }))
+  }
+
+  const removeCandidate = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      candidates: prev.candidates.filter((_, i) => i !== index)
+    }))
+  }
+
+  const updateCandidate = (index: number, field: keyof CandidateFormData, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      candidates: prev.candidates.map((c, i) => 
+        i === index ? { ...c, [field]: value } : c
+      )
+    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -173,6 +205,80 @@ export default function ElectionForm({ onSubmit, initialData, submitLabel = 'Cre
                 onChange={(e) => handleChange('city', e.target.value)}
                 required={formData.level === 'KOTA' || formData.level === 'KECAMATAN'}
               />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Candidates Section */}
+      <Card>
+        <CardHeader className="border-b border-border">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Candidates</CardTitle>
+              <CardDescription>Add candidates for this election (optional - can add later)</CardDescription>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={addCandidate} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Add Candidate
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6">
+          {formData.candidates.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">
+              No candidates added yet. You can add candidates now or after creating the election.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {formData.candidates.map((candidate, index) => (
+                <div key={index} className="p-4 border border-border rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-sm text-muted-foreground">Candidate #{index + 1}</span>
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => removeCandidate(index)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label htmlFor={`candidate-name-${index}`}>Name *</Label>
+                      <Input
+                        id={`candidate-name-${index}`}
+                        placeholder="e.g. John Doe"
+                        value={candidate.name}
+                        onChange={(e) => updateCandidate(index, 'name', e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor={`candidate-party-${index}`}>Party *</Label>
+                      <Input
+                        id={`candidate-party-${index}`}
+                        placeholder="e.g. Democratic Party"
+                        value={candidate.party}
+                        onChange={(e) => updateCandidate(index, 'party', e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`candidate-desc-${index}`}>Description</Label>
+                    <Textarea
+                      id={`candidate-desc-${index}`}
+                      placeholder="Brief description of the candidate"
+                      value={candidate.description}
+                      onChange={(e) => updateCandidate(index, 'description', e.target.value)}
+                      rows={2}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>

@@ -89,11 +89,16 @@ export async function POST(request: NextRequest) {
     // Convert dates to Unix timestamps
     const startTime = Math.floor(new Date(election.startTime).getTime() / 1000);
     const endTime = Math.floor(new Date(election.endTime).getTime() / 1000);
+    const currentTime = Math.floor(Date.now() / 1000);
 
     console.log('Deploying election to blockchain:', {
       name: election.name,
       startTime: new Date(startTime * 1000).toISOString(),
       endTime: new Date(endTime * 1000).toISOString(),
+      startTimeUnix: startTime,
+      endTimeUnix: endTime,
+      currentTimeUnix: currentTime,
+      timeDiff: `Election starts in ${startTime - currentTime} seconds`,
     });
 
     // Create election on blockchain
@@ -126,9 +131,14 @@ export async function POST(request: NextRequest) {
 
     console.log('Blockchain election ID:', chainElectionId);
 
-    // Add candidates to blockchain
-    for (const candidate of election.candidates) {
-      console.log('Adding candidate:', candidate.name);
+    // Sort candidates by orderIndex before adding to blockchain
+    const sortedCandidates = election.candidates.sort((a, b) => a.orderIndex - b.orderIndex);
+    console.log('Adding candidates in order:', sortedCandidates.map(c => `${c.orderIndex}: ${c.name}`));
+
+    // Add candidates to blockchain and save their blockchain IDs
+    let blockchainCandidateId = 1n; // Blockchain candidate IDs start from 1
+    for (const candidate of sortedCandidates) {
+      console.log(`Adding candidate: ${candidate.name} (orderIndex: ${candidate.orderIndex}, blockchain ID: ${blockchainCandidateId})`);
       
       const addCandidateTx = prepareContractCall({
         contract: votingContract,
@@ -147,6 +157,35 @@ export async function POST(request: NextRequest) {
       });
 
       console.log('Candidate added:', candidateReceipt.transactionHash);
+
+      // Read candidate count from blockchain to verify
+      try {
+        const candidateCount = await readContract({
+          contract: votingContract,
+          method: "function getCandidateCount(uint256 electionId) view returns (uint256)",
+          params: [chainElectionId]
+        });
+        console.log(`Blockchain candidate count for election ${chainElectionId}: ${candidateCount}`);
+      } catch (e) {
+        console.log('Could not read candidate count (method may not exist)');
+      }
+
+      // Update candidate with blockchain ID
+      console.log(`Attempting to update candidate ${candidate.id} with chainCandidateId: ${blockchainCandidateId}`);
+      console.log(`   candidate.id type: ${typeof candidate.id}, value: ${candidate.id}`);
+      console.log(`   blockchainCandidateId type: ${typeof blockchainCandidateId}, value: ${blockchainCandidateId}`);
+      
+      const updatedCandidate = await prisma.candidate.update({
+        where: { id: candidate.id },
+        data: { chainCandidateId: blockchainCandidateId } as any // Cast to bypass TS until regenerated
+      });
+      console.log(`Updated candidate result:`, {
+        id: updatedCandidate.id.toString(),
+        name: updatedCandidate.name,
+        chainCandidateId: (updatedCandidate as any).chainCandidateId?.toString()
+      });
+
+      blockchainCandidateId++; // Increment for next candidate
     }
 
     // Update database with blockchain election ID

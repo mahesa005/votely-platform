@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { ArrowLeft, Calendar, MapPin, Plus, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Plus, Trash2, Users, Upload, Loader2, BarChart3, RefreshCw, Lock, AlertTriangle } from 'lucide-react'
 
 type Election = {
   id: string
@@ -21,7 +21,10 @@ type Election = {
   province: string | null
   startTime: string
   endTime: string
+  chainElectionId: string | null
+  deletedAt: string | null
   candidates: Candidate[]
+  totalVotes?: number
   _count?: {
     votes: number
   }
@@ -34,6 +37,8 @@ type Candidate = {
   description: string | null
   photoUrl: string | null
   orderIndex: number
+  chainCandidateId: string | null
+  voteCount?: number
 }
 
 function getElectionStatus(startTime: string, endTime: string): string {
@@ -87,6 +92,9 @@ export default function AdminElectionDetailPage({ params }: { params: Promise<{ 
     description: '',
   })
   const [submitting, setSubmitting] = useState(false)
+  const [deploying, setDeploying] = useState(false)
+  const [deployingCandidates, setDeployingCandidates] = useState(false)
+  const [refreshingResults, setRefreshingResults] = useState(false)
   const [showEditElection, setShowEditElection] = useState(false)
   const [editForm, setEditForm] = useState({
     name: '',
@@ -105,9 +113,10 @@ export default function AdminElectionDetailPage({ params }: { params: Promise<{ 
     })
   }, [])
 
-  const fetchElection = async (id: string) => {
+  const fetchElection = async (id: string, showRefreshLoader = false) => {
+    if (showRefreshLoader) setRefreshingResults(true)
     try {
-      const response = await fetch(`/api/admin/elections/${id}`)
+      const response = await fetch(`/api/admin/elections/${id}?includeResults=true`)
       const data = await response.json()
 
       if (data.success) {
@@ -131,6 +140,13 @@ export default function AdminElectionDetailPage({ params }: { params: Promise<{ 
       console.error('Error fetching election:', err)
     } finally {
       setLoading(false)
+      setRefreshingResults(false)
+    }
+  }
+
+  const handleRefreshResults = () => {
+    if (electionId) {
+      fetchElection(electionId, true)
     }
   }
 
@@ -260,6 +276,78 @@ export default function AdminElectionDetailPage({ params }: { params: Promise<{ 
     }
   }
 
+  // Deploy election to blockchain (includes existing candidates)
+  const handleDeployBlockchain = async () => {
+    if (!election) return
+
+    if (election.candidates.length === 0) {
+      if (!confirm('No candidates added yet. Deploy election without candidates? You can deploy candidates later.')) {
+        return
+      }
+    }
+
+    setDeploying(true)
+    try {
+      const response = await fetch('/api/admin/elections/deploy-blockchain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ electionId: election.id }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        alert(`Election deployed to blockchain!\n\nChain Election ID: ${data.data.chainElectionId}\nCandidates deployed: ${data.data.candidatesDeployed}\nTx: ${data.data.transactionHash}`)
+        fetchElection(electionId)
+      } else {
+        alert(data.error || 'Failed to deploy to blockchain')
+      }
+    } catch (err) {
+      alert('Failed to deploy to blockchain')
+      console.error('Error deploying:', err)
+    } finally {
+      setDeploying(false)
+    }
+  }
+
+  // Deploy new candidates to already deployed election
+  const handleDeployCandidates = async () => {
+    if (!election) return
+
+    const undeployedCount = election.candidates.filter(c => !c.chainCandidateId).length
+    if (undeployedCount === 0) {
+      alert('All candidates are already deployed to blockchain')
+      return
+    }
+
+    if (!confirm(`Deploy ${undeployedCount} candidate(s) to blockchain?`)) {
+      return
+    }
+
+    setDeployingCandidates(true)
+    try {
+      const response = await fetch('/api/admin/elections/deploy-candidates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ electionId: election.id }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        alert(`Candidates deployed!\n\n${data.data.candidatesDeployed} candidate(s) deployed to blockchain.`)
+        fetchElection(electionId)
+      } else {
+        alert(data.error || 'Failed to deploy candidates')
+      }
+    } catch (err) {
+      alert('Failed to deploy candidates')
+      console.error('Error deploying candidates:', err)
+    } finally {
+      setDeployingCandidates(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -288,9 +376,46 @@ export default function AdminElectionDetailPage({ params }: { params: Promise<{ 
 
   const status = getElectionStatus(election.startTime, election.endTime)
   const location = election.city || election.province || 'Nasional'
+  
+  // Determine what actions are allowed based on status
+  const isDeployed = !!election.chainElectionId
+  const isDeleted = !!election.deletedAt
+  const canEdit = !isDeployed && !isDeleted && status === 'upcoming'
+  const canAddCandidates = !isDeleted && status === 'upcoming'
+  const canDeleteCandidates = !isDeployed && !isDeleted && status === 'upcoming'
+  const canDelete = !isDeleted && status !== 'active'
+  const canDeploy = !isDeployed && !isDeleted && status === 'upcoming'
 
   return (
     <div className="space-y-6">
+      {/* Deleted Banner */}
+      {isDeleted && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-600" />
+          <div>
+            <p className="font-medium text-red-800">This election has been deleted</p>
+            <p className="text-sm text-red-600">It is no longer visible to voters but data is preserved.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Locked Banner */}
+      {isDeployed && !isDeleted && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center gap-3">
+          <Lock className="w-5 h-5 text-amber-600" />
+          <div>
+            <p className="font-medium text-amber-800">Election is locked (deployed to blockchain)</p>
+            <p className="text-sm text-amber-600">
+              {status === 'upcoming' 
+                ? 'You can only add candidates until voting starts.' 
+                : status === 'active'
+                ? 'Voting is in progress. No changes allowed.'
+                : 'Voting has ended. You can only soft delete this election.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <Link href="/admin">
@@ -299,15 +424,17 @@ export default function AdminElectionDetailPage({ params }: { params: Promise<{ 
             Back to Dashboard
           </Button>
         </Link>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="gap-2 text-red-600 hover:text-red-700"
-          onClick={handleDeleteElection}
-        >
-          <Trash2 className="w-4 h-4" />
-          Delete Election
-        </Button>
+        {canDelete && (
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-2 text-red-600 hover:text-red-700"
+            onClick={handleDeleteElection}
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete Election
+          </Button>
+        )}
       </div>
 
       {/* Election Info */}
@@ -322,12 +449,43 @@ export default function AdminElectionDetailPage({ params }: { params: Promise<{ 
               <Badge className={`${getStatusColor(status)} border-0 capitalize`}>
                 {status}
               </Badge>
-              <Dialog open={showEditElection} onOpenChange={setShowEditElection}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    Edit
-                  </Button>
-                </DialogTrigger>
+              {isDeleted && (
+                <Badge className="bg-red-100 text-red-800 border-0">
+                  Deleted
+                </Badge>
+              )}
+              {election.chainElectionId ? (
+                <Badge className="bg-purple-100 text-purple-800 border-0">
+                  On-chain #{election.chainElectionId}
+                </Badge>
+              ) : canDeploy ? (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="gap-2"
+                  onClick={handleDeployBlockchain}
+                  disabled={deploying}
+                >
+                  {deploying ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Deploying...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      Deploy to Blockchain
+                    </>
+                  )}
+                </Button>
+              ) : null}
+              {canEdit && (
+                <Dialog open={showEditElection} onOpenChange={setShowEditElection}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm">
+                      Edit
+                    </Button>
+                  </DialogTrigger>
                 <DialogContent className="max-w-2xl">
                   <DialogHeader>
                     <DialogTitle>Edit Election</DialogTitle>
@@ -420,6 +578,7 @@ export default function AdminElectionDetailPage({ params }: { params: Promise<{ 
                   </form>
                 </DialogContent>
               </Dialog>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -435,13 +594,77 @@ export default function AdminElectionDetailPage({ params }: { params: Promise<{ 
             </div>
             <div className="flex items-center gap-2 text-muted-foreground">
               <Users className="w-4 h-4 shrink-0" />
-              <span>{election._count?.votes || 0} votes cast</span>
+              <span>{election.totalVotes || election._count?.votes || 0} votes cast</span>
             </div>
           </div>
           <div className="mt-4 pt-4 border-t border-border">
             <p className="text-sm text-muted-foreground">Voting Period</p>
             <p className="text-foreground mt-1">{formatDate(election.startTime)} - {formatDate(election.endTime)}</p>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Voting Results */}
+      <Card>
+        <CardHeader className="border-b border-border">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-primary" />
+              <div>
+                <CardTitle>Voting Results</CardTitle>
+                <CardDescription>Live vote distribution</CardDescription>
+              </div>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleRefreshResults}
+              disabled={refreshingResults}
+              className="gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshingResults ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6">
+          {(election.totalVotes || 0) === 0 ? (
+            <p className="text-muted-foreground text-center py-8">No votes yet</p>
+          ) : (
+            <div className="space-y-4">
+              {election.candidates
+                .sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0))
+                .map((candidate, index) => {
+                  const voteCount = candidate.voteCount || 0
+                  const totalVotes = election.totalVotes || 0
+                  const percentage = totalVotes > 0 ? (voteCount / totalVotes) * 100 : 0
+
+                  return (
+                    <div key={candidate.id} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {index === 0 && totalVotes > 0 && (
+                            <Badge className="bg-yellow-100 text-yellow-800 border-0">Leading</Badge>
+                          )}
+                          <span className="font-medium">{candidate.name}</span>
+                          <span className="text-sm text-muted-foreground">({candidate.party})</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="font-bold">{percentage.toFixed(1)}%</span>
+                          <span className="text-sm text-muted-foreground ml-2">({voteCount} votes)</span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-secondary rounded-full h-2">
+                        <div 
+                          className="h-2 rounded-full bg-primary transition-all duration-500"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -453,67 +676,99 @@ export default function AdminElectionDetailPage({ params }: { params: Promise<{ 
               <CardTitle>Candidates</CardTitle>
               <CardDescription>Manage candidates for this election</CardDescription>
             </div>
-            <Dialog open={showAddCandidate} onOpenChange={setShowAddCandidate}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="gap-2">
-                  <Plus className="w-4 h-4" />
-                  Add Candidate
+            <div className="flex items-center gap-2">
+              {/* Deploy Candidates button - only show if election is deployed but has undeployed candidates */}
+              {election.chainElectionId && election.candidates.some(c => !c.chainCandidateId) && canAddCandidates && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="gap-2"
+                  onClick={handleDeployCandidates}
+                  disabled={deployingCandidates}
+                >
+                  {deployingCandidates ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Deploying...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4" />
+                      Deploy Candidates ({election.candidates.filter(c => !c.chainCandidateId).length})
+                    </>
+                  )}
                 </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add New Candidate</DialogTitle>
-                  <DialogDescription>
-                    Add a candidate to this election
-                  </DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleAddCandidate} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Candidate Name *</Label>
-                    <Input
-                      id="name"
-                      placeholder="e.g. John Doe"
-                      value={candidateForm.name}
-                      onChange={(e) => setCandidateForm(prev => ({ ...prev, name: e.target.value }))}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="party">Party *</Label>
-                    <Input
-                      id="party"
-                      placeholder="e.g. Democratic Party"
-                      value={candidateForm.party}
-                      onChange={(e) => setCandidateForm(prev => ({ ...prev, party: e.target.value }))}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      placeholder="Brief description of the candidate"
-                      value={candidateForm.description}
-                      onChange={(e) => setCandidateForm(prev => ({ ...prev, description: e.target.value }))}
-                      rows={3}
-                    />
-                  </div>
-                  <div className="flex justify-end gap-3">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      onClick={() => setShowAddCandidate(false)}
-                      disabled={submitting}
-                    >
-                      Cancel
+              )}
+              {canAddCandidates && (
+                <Dialog open={showAddCandidate} onOpenChange={setShowAddCandidate}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="gap-2">
+                      <Plus className="w-4 h-4" />
+                      Add Candidate
                     </Button>
-                    <Button type="submit" disabled={submitting}>
-                      {submitting ? 'Adding...' : 'Add Candidate'}
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
+                  </DialogTrigger>
+                  <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Candidate</DialogTitle>
+                    <DialogDescription>
+                      Add a candidate to this election
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleAddCandidate} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Candidate Name *</Label>
+                      <Input
+                        id="name"
+                        placeholder="e.g. John Doe"
+                        value={candidateForm.name}
+                        onChange={(e) => setCandidateForm(prev => ({ ...prev, name: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="party">Party *</Label>
+                      <Input
+                        id="party"
+                        placeholder="e.g. Democratic Party"
+                        value={candidateForm.party}
+                        onChange={(e) => setCandidateForm(prev => ({ ...prev, party: e.target.value }))}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea
+                        id="description"
+                        placeholder="Brief description of the candidate"
+                        value={candidateForm.description}
+                        onChange={(e) => setCandidateForm(prev => ({ ...prev, description: e.target.value }))}
+                        rows={3}
+                      />
+                    </div>
+                    <div className="flex justify-end gap-3">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => setShowAddCandidate(false)}
+                        disabled={submitting}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={submitting}>
+                        {submitting ? 'Adding...' : 'Add Candidate'}
+                      </Button>
+                    </div>
+                  </form>
+                  </DialogContent>
+                </Dialog>
+              )}
+              {!canAddCandidates && (
+                <Badge className="bg-gray-100 text-gray-600 border-0 gap-1">
+                  <Lock className="w-3 h-3" />
+                  {status === 'active' ? 'Voting in progress' : status === 'finished' ? 'Election ended' : 'Deleted'}
+                </Badge>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="pt-6">
@@ -527,21 +782,34 @@ export default function AdminElectionDetailPage({ params }: { params: Promise<{ 
                   className="flex items-center justify-between gap-4 p-4 rounded-lg border border-border hover:bg-muted transition-colors"
                 >
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-foreground truncate">{candidate.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-foreground truncate">{candidate.name}</h3>
+                      {candidate.chainCandidateId ? (
+                        <Badge className="bg-green-100 text-green-800 border-0 text-xs">
+                          On-chain #{candidate.chainCandidateId}
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-yellow-100 text-yellow-800 border-0 text-xs">
+                          Not deployed
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-sm text-muted-foreground">{candidate.party}</p>
                     {candidate.description && (
                       <p className="text-sm text-muted-foreground mt-1">{candidate.description}</p>
                     )}
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2 text-red-600 hover:text-red-700"
-                    onClick={() => handleDeleteCandidate(candidate.id)}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Remove
-                  </Button>
+                  {canDeleteCandidates && !candidate.chainCandidateId && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 text-red-600 hover:text-red-700"
+                      onClick={() => handleDeleteCandidate(candidate.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Remove
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>

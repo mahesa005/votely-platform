@@ -51,6 +51,7 @@ model Election {
   createdBy          String               @map("created_by")
   createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?            @map("deleted_at") @db.Timestamptz(6)
   candidates         Candidate[]
   electionStatsCache ElectionStatsCache[]
   creator            User                 @relation("CreatedByAdmin", fields: [createdBy], references: [id])
@@ -59,6 +60,7 @@ model Election {
   @@index([level, city, province])
   @@index([startTime])
   @@index([endTime])
+  @@index([deletedAt])
   @@map("elections")
 }
 
@@ -72,6 +74,7 @@ model Candidate {
   orderIndex         Int                  @map("order_index")
   createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  chainCandidateId   BigInt?
   election           Election             @relation(fields: [electionId], references: [id], onDelete: Cascade)
   electionStatsCache ElectionStatsCache[]
   votes              Vote[]

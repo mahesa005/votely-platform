@@ -2,10 +2,11 @@ import { prisma } from "@/lib/prisma";
 import type { Election, Candidate, Vote } from "@prisma/client";
 
 /**
- * Get all elections
+ * Get all elections (excluding soft deleted by default)
  */
-export async function getAllElections() {
+export async function getAllElections(includeDeleted = false) {
   return await prisma.election.findMany({
+    where: includeDeleted ? {} : { deletedAt: null },
     include: {
       candidates: true,
       creator: {
@@ -101,7 +102,7 @@ export async function getElectionsByCity(city: string, province: string) {
 }
 
 /**
- * Get elections for a specific user based on their location
+ * Get elections for a specific user based on their location (excluding soft deleted)
  */
 export async function getElectionsForUser(userId: string) {
   const user = await prisma.user.findUnique({
@@ -117,6 +118,7 @@ export async function getElectionsForUser(userId: string) {
 
   return await prisma.election.findMany({
     where: {
+      deletedAt: null,
       OR: [
         { level: 'NASIONAL' },
         { 

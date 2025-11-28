@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft, Loader2, CheckCircle2, XCircle } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -12,16 +12,20 @@ export default function CreateElectionPage() {
   const router = useRouter()
   const [error, setError] = useState('')
   const [progress, setProgress] = useState('')
+  const [success, setSuccess] = useState('')
   const [isDeploying, setIsDeploying] = useState(false)
 
   const handleSubmit = async (data: ElectionFormData) => {
     setIsDeploying(true)
     setError('')
+    setSuccess('')
     
     try {
-      // Step 1: Create election in database
-      setProgress('Creating election in database...')
-      const response = await fetch('/api/admin/elections', {
+      // Use atomic API - creates database AND blockchain in one call
+      // If blockchain fails, nothing is saved to database
+      setProgress('Creating election and deploying to blockchain...')
+      
+      const response = await fetch('/api/admin/elections/create-and-deploy', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -37,31 +41,17 @@ export default function CreateElectionPage() {
 
       const electionId = result.data.id
 
-      // Step 2: Deploy to blockchain
-      setProgress('Deploying election to blockchain...')
-      const blockchainResponse = await fetch('/api/admin/elections/deploy-blockchain', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ electionId }),
-      })
-
-      const blockchainResult = await blockchainResponse.json()
-
-      if (!blockchainResult.success) {
-        throw new Error(blockchainResult.error || 'Failed to deploy to blockchain')
-      }
-
-      setProgress('Election created successfully!')
+      setProgress('')
+      setSuccess(`Election created and deployed successfully! Tx: ${result.blockchain?.transactionHash?.slice(0, 10)}...`)
       
       // Redirect to the newly created election's detail page
       setTimeout(() => {
         router.push(`/admin/elections/${electionId}`)
-      }, 1000)
+      }, 2000)
       
     } catch (err: any) {
-      setError(err.message)
+      setProgress('')
+      setError(err.message + '. No data was saved to database.')
       setIsDeploying(false)
       throw err
     }
@@ -90,9 +80,17 @@ export default function CreateElectionPage() {
         </Alert>
       )}
 
+      {success && (
+        <Alert className="bg-green-50 border-green-200">
+          <CheckCircle2 className="w-4 h-4 text-green-600" />
+          <AlertDescription className="ml-2 text-green-800">{success}</AlertDescription>
+        </Alert>
+      )}
+
       {error && (
         <Alert className="bg-red-50 border-red-200">
-          <AlertDescription className="text-red-600">{error}</AlertDescription>
+          <XCircle className="w-4 h-4 text-red-600" />
+          <AlertDescription className="ml-2 text-red-600">{error}</AlertDescription>
         </Alert>
       )}
 

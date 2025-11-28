@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { addCandidate, getCandidatesByElection } from '@/lib/elections';
+import { addCandidate, getCandidatesByElection, getElectionById } from '@/lib/elections';
 import { getCurrentUserFromToken } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
@@ -10,7 +10,16 @@ function serializeCandidate(candidate: any) {
     ...candidate,
     id: candidate.id.toString(),
     electionId: candidate.electionId.toString(),
+    chainCandidateId: candidate.chainCandidateId?.toString() || null,
   };
+}
+
+// Helper to get election status
+function getElectionStatus(startTime: Date, endTime: Date): 'upcoming' | 'active' | 'finished' {
+  const now = new Date();
+  if (now < startTime) return 'upcoming';
+  if (now >= startTime && now <= endTime) return 'active';
+  return 'finished';
 }
 
 // GET - Get candidates for an election (admin only)
@@ -89,6 +98,40 @@ export async function POST(
       );
     }
 
+    // Get election to check status
+    const election = await getElectionById(electionId);
+    if (!election) {
+      return NextResponse.json(
+        { success: false, error: 'Election not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check if election is soft deleted
+    if (election.deletedAt) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot add candidates to a deleted election' },
+        { status: 400 }
+      );
+    }
+
+    // Check election status - can only add candidates if upcoming (not started)
+    const status = getElectionStatus(election.startTime, election.endTime);
+    
+    if (status === 'active') {
+      return NextResponse.json(
+        { success: false, error: 'Cannot add candidates while election is active/ongoing' },
+        { status: 400 }
+      );
+    }
+
+    if (status === 'finished') {
+      return NextResponse.json(
+        { success: false, error: 'Cannot add candidates after election has finished' },
+        { status: 400 }
+      );
+    }
+
     // Get the next order index
     const existingCandidates = await getCandidatesByElection(electionId);
     const orderIndex = existingCandidates.length;
@@ -140,12 +183,67 @@ export async function DELETE(
       );
     }
 
+    const { electionId } = await context.params;
     const { searchParams } = new URL(request.url);
     const candidateId = searchParams.get('candidateId');
 
     if (!candidateId) {
       return NextResponse.json(
         { success: false, error: 'Candidate ID is required' },
+        { status: 400 }
+      );
+    }
+
+    // Get election to check status
+    const election = await getElectionById(electionId);
+    if (!election) {
+      return NextResponse.json(
+        { success: false, error: 'Election not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check if election is soft deleted
+    if (election.deletedAt) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot delete candidates from a deleted election' },
+        { status: 400 }
+      );
+    }
+
+    // Check if election is deployed to blockchain
+    if (election.chainElectionId) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot delete candidates after election has been deployed to blockchain' },
+        { status: 400 }
+      );
+    }
+
+    // Check election status
+    const status = getElectionStatus(election.startTime, election.endTime);
+    
+    if (status === 'active') {
+      return NextResponse.json(
+        { success: false, error: 'Cannot delete candidates while election is active/ongoing' },
+        { status: 400 }
+      );
+    }
+
+    if (status === 'finished') {
+      return NextResponse.json(
+        { success: false, error: 'Cannot delete candidates after election has finished' },
+        { status: 400 }
+      );
+    }
+
+    // Check if candidate is deployed to blockchain
+    const candidate = await prisma.candidate.findUnique({
+      where: { id: BigInt(candidateId) }
+    });
+
+    if (candidate?.chainCandidateId) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot delete candidate that has been deployed to blockchain' },
         { status: 400 }
       );
     }

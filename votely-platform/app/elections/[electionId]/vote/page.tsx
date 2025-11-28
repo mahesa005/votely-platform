@@ -8,11 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Camera, CheckCircle, Users, ArrowLeft, Loader2 } from 'lucide-react'
-import { useActiveAccount, ConnectButton } from "thirdweb/react"
-import { prepareContractCall, sendTransaction } from "thirdweb"
-import { votingContract, client } from "@/lib/thirdweb"
-import { inAppWallet } from "thirdweb/wallets"
+import { Camera, CheckCircle, Users, ArrowLeft, Loader2, BarChart3 } from 'lucide-react'
 
 type Candidate = {
   id: string
@@ -22,6 +18,8 @@ type Candidate = {
   photoUrl: string | null
   orderIndex: number
   electionId: string
+  chainCandidateId: string | null
+  voteCount?: number
 }
 
 type Election = {
@@ -33,13 +31,14 @@ type Election = {
   city: string | null
   startTime: string
   endTime: string
+  chainElectionId: string | null
   candidates: Candidate[]
+  totalVotes?: number
 }
 
 export default function VotingPage() {
   const params = useParams()
   const router = useRouter()
-  const account = useActiveAccount() // Get user's In-App Wallet
 
   // Konversi ID string dari URL
   const electionIdParam = params.electionId as string
@@ -51,21 +50,34 @@ export default function VotingPage() {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [hasAlreadyVoted, setHasAlreadyVoted] = useState(false)
+  const [userVotedCandidateId, setUserVotedCandidateId] = useState<string | null>(null)
   
   // State local untuk hasil
   const [showResults, setShowResults] = useState(false)
 
-  // Fetch election data from API
+  // Fetch election data and check if user already voted
   useEffect(() => {
-    async function fetchElection() {
+    async function fetchElectionAndVoteStatus() {
       try {
-        const response = await fetch(`/api/elections/${electionIdParam}`)
+        // Fetch election with results
+        const response = await fetch(`/api/elections/${electionIdParam}?includeResults=true`)
         const result = await response.json()
         
         if (result.success && result.data) {
           setElection(result.data)
         } else {
           console.error('Failed to fetch election:', result.error)
+        }
+
+        // Check if user has already voted
+        const voteCheckResponse = await fetch(`/api/vote/check?electionId=${electionIdParam}`)
+        const voteCheckResult = await voteCheckResponse.json()
+        
+        if (voteCheckResult.success && voteCheckResult.data.hasVoted) {
+          setHasAlreadyVoted(true)
+          setUserVotedCandidateId(voteCheckResult.data.candidateId)
+          setShowResults(true) // Show results if already voted
         }
       } catch (error) {
         console.error('Error fetching election:', error)
@@ -74,7 +86,7 @@ export default function VotingPage() {
       }
     }
 
-    fetchElection()
+    fetchElectionAndVoteStatus()
   }, [electionIdParam])
 
   // Helper function to get election status
@@ -113,53 +125,54 @@ export default function VotingPage() {
     setShowConfirmDialog(true)
   }
 
-  // Submit vote with In-App Wallet (Client-side signing + Gasless)
+  // Submit vote via API (Admin pays gas)
   const handleConfirmVote = async () => {
-    if (!selectedCandidate || !account) {
-      alert('Please connect your wallet first')
+    if (!selectedCandidate) {
+      alert('Please select a candidate first')
+      return
+    }
+
+    // Check if election is deployed to blockchain
+    if (!election.chainElectionId) {
+      alert('This election is not deployed to blockchain yet. Please contact administrator.')
       return
     }
     
     setIsSubmitting(true)
     try {
-      console.log(`Preparing vote transaction...`)
-      console.log(`   Voter: ${account.address}`)
-      console.log(`   Election: ${election.id}`)
-      console.log(`   Candidate: ${selectedCandidate.id}`)
+      // Check if candidate has blockchain ID
+      if (!selectedCandidate.chainCandidateId) {
+        alert('This candidate is not deployed to blockchain yet. Please contact administrator.')
+        setIsSubmitting(false)
+        return
+      }
 
-      // Prepare contract call
-      const transaction = prepareContractCall({
-        contract: votingContract,
-        method: "function vote(uint256 electionId, uint256 candidateId)",
-        params: [BigInt(election.id), BigInt(selectedCandidate.id)],
-      })
+      console.log(`Casting vote via API...`)
+      console.log(`   Election ID: ${election.id}`)
+      console.log(`   Candidate ID: ${selectedCandidate.id}`)
 
-      // User signs transaction with their In-App Wallet
-      // Admin wallet pays gas via Thirdweb Paymaster (if configured)
-      console.log(`Signing transaction with user wallet...`)
-      const receipt = await sendTransaction({
-        transaction,
-        account, // User's In-App Wallet signs
-      })
-
-      console.log(`Vote confirmed on-chain!`)
-      console.log(`   Transaction Hash: ${receipt.transactionHash}`)
-      console.log(`   From: ${account.address} (User's unique identity)`)
-      
-      setVotedFor(selectedCandidate.id)
-      setShowConfirmDialog(false)
-      setShowResults(true)
-
-      // Optional: Record vote in database
-      await fetch('/api/vote/record', {
+      // Call API to cast vote (admin pays gas)
+      const response = await fetch('/api/vote/cast', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           electionId: election.id,
           candidateId: selectedCandidate.id,
-          txHash: receipt.transactionHash,
         }),
       })
+
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to cast vote')
+      }
+
+      console.log(`Vote confirmed on-chain!`)
+      console.log(`   Transaction Hash: ${result.data.transactionHash}`)
+      
+      setVotedFor(selectedCandidate.id)
+      setShowConfirmDialog(false)
+      setShowResults(true)
 
     } catch (error: any) {
       console.error('[ERROR] Vote error:', error)
@@ -194,12 +207,6 @@ export default function VotingPage() {
             <div className="text-sm text-muted-foreground">
               {election.name}
             </div>
-            <ConnectButton
-              client={client}
-              wallets={[inAppWallet()]}
-              connectButton={{ label: "Connect Wallet" }}
-              connectModal={{ size: "compact" }}
-            />
           </div>
         </div>
       </div>
@@ -213,16 +220,6 @@ export default function VotingPage() {
           </Alert>
         ) : !showResults ? (
           <>
-            {/* Wallet Connection Info */}
-            {account && (
-              <Alert className="border-green-200 bg-green-50">
-                <AlertDescription className="text-green-900 flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4" />
-                  <span>Wallet Connected: {account.address.slice(0, 6)}...{account.address.slice(-4)}</span>
-                </AlertDescription>
-              </Alert>
-            )}
-
             {/* Step 1: Face Verification */}
             <Card className={`border-2 transition-all ${faceVerified ? 'border-green-200 bg-green-50' : 'border-border'}`}>
               <CardHeader>
@@ -333,33 +330,24 @@ export default function VotingPage() {
                       <p className="text-sm text-muted-foreground">{selectedCandidate.party}</p>
                     </div>
 
-                    {!account ? (
-                      <Alert className="border-amber-200 bg-amber-50">
-                        <AlertDescription className="text-amber-900">
-                          Please connect your wallet first to vote
-                        </AlertDescription>
-                      </Alert>
-                    ) : (
-                      <div className="text-xs text-muted-foreground bg-blue-50 p-3 rounded border border-blue-200">
-                        <p className="font-semibold text-blue-900 mb-1">Your Vote Identity:</p>
-                        <p className="font-mono text-blue-700">{account.address}</p>
-                        <p className="mt-2 text-blue-800">Gas fee akan dibayar oleh sistem (Gasless Transaction)</p>
-                      </div>
-                    )}
+                    <div className="text-xs text-muted-foreground bg-blue-50 p-3 rounded border border-blue-200">
+                      <p className="font-semibold text-blue-900 mb-1">Informasi:</p>
+                      <p className="text-blue-800">Vote Anda akan dicatat di blockchain. Gas fee dibayar oleh sistem.</p>
+                    </div>
 
-                    {/* Submit vote - Client signs with In-App Wallet */}
+                    {/* Submit vote via API */}
                     <Button
                       onClick={handleConfirmVote}
-                      disabled={isSubmitting || !account}
+                      disabled={isSubmitting}
                       className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
                     >
                       {isSubmitting ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Signing & Submitting...
+                          Submitting Vote...
                         </>
                       ) : (
-                        'Sign & Vote'
+                        'Confirm Vote'
                       )}
                     </Button>
                     
@@ -377,25 +365,98 @@ export default function VotingPage() {
             </Dialog>
           </>
         ) : (
-          // Tampilan setelah sukses voting (Sama seperti sebelumnya)
-          <Card className="border-green-200 bg-green-50">
-             <CardHeader className="text-center pb-6">
+          // Tampilan hasil voting dengan persentase
+          <div className="space-y-6">
+            <Card className={hasAlreadyVoted ? "border-blue-200 bg-blue-50" : "border-green-200 bg-green-50"}>
+              <CardHeader className="text-center pb-4">
                 <div className="flex justify-center mb-4">
-                  <CheckCircle className="w-12 h-12 text-green-600" />
+                  <CheckCircle className={`w-12 h-12 ${hasAlreadyVoted ? 'text-blue-600' : 'text-green-600'}`} />
                 </div>
-                <CardTitle className="text-2xl">Voting Recorded on Blockchain!</CardTitle>
-                <CardDescription>Your transaction hash has been verified.</CardDescription>
-             </CardHeader>
-             <CardContent className="text-center">
-                <div className="bg-white p-6 rounded-lg border border-green-200 mb-4">
+                <CardTitle className="text-2xl">
+                  {hasAlreadyVoted ? 'You Have Already Voted' : 'Vote Recorded Successfully!'}
+                </CardTitle>
+                <CardDescription>
+                  {hasAlreadyVoted 
+                    ? 'Your vote has been recorded on the blockchain' 
+                    : 'Your transaction has been verified on blockchain'}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <div className={`p-4 rounded-lg border mb-4 ${hasAlreadyVoted ? 'bg-white border-blue-200' : 'bg-white border-green-200'}`}>
                   <p className="text-sm text-muted-foreground">You voted for:</p>
-                  <p className="text-xl font-bold">{selectedCandidate?.name}</p>
+                  <p className="text-xl font-bold">
+                    {hasAlreadyVoted 
+                      ? election.candidates.find(c => c.id === userVotedCandidateId)?.name 
+                      : selectedCandidate?.name}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {hasAlreadyVoted 
+                      ? election.candidates.find(c => c.id === userVotedCandidateId)?.party 
+                      : selectedCandidate?.party}
+                  </p>
                 </div>
-                <Link href="/dashboard">
-                  <Button className="w-full">Return to Dashboard</Button>
-                </Link>
-             </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+
+            {/* Election Results */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-primary" />
+                  <CardTitle>Live Results</CardTitle>
+                </div>
+                <CardDescription>
+                  Total votes: {election.totalVotes || 0}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {election.candidates
+                  .sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0))
+                  .map((candidate, index) => {
+                    const voteCount = candidate.voteCount || 0
+                    const totalVotes = election.totalVotes || 0
+                    const percentage = totalVotes > 0 ? (voteCount / totalVotes) * 100 : 0
+                    const isUserVote = hasAlreadyVoted 
+                      ? candidate.id === userVotedCandidateId 
+                      : candidate.id === selectedCandidate?.id
+
+                    return (
+                      <div 
+                        key={candidate.id} 
+                        className={`p-4 rounded-lg border ${isUserVote ? 'border-primary bg-primary/5' : 'border-border'}`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            {index === 0 && totalVotes > 0 && (
+                              <Badge className="bg-yellow-100 text-yellow-800 border-0">Leading</Badge>
+                            )}
+                            <span className="font-semibold">{candidate.name}</span>
+                            {isUserVote && (
+                              <Badge className="bg-primary/10 text-primary border-0">Your Vote</Badge>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <span className="font-bold text-lg">{percentage.toFixed(1)}%</span>
+                            <span className="text-sm text-muted-foreground ml-2">({voteCount} votes)</span>
+                          </div>
+                        </div>
+                        <div className="text-sm text-muted-foreground mb-2">{candidate.party}</div>
+                        <div className="w-full bg-secondary rounded-full h-3">
+                          <div 
+                            className={`h-3 rounded-full transition-all duration-500 ${isUserVote ? 'bg-primary' : 'bg-primary/60'}`}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+              </CardContent>
+            </Card>
+
+            <Link href="/dashboard">
+              <Button className="w-full">Return to Dashboard</Button>
+            </Link>
+          </div>
         )}
       </div>
     </div>
