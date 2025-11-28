@@ -66,6 +66,13 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchElections()
+    
+    // Handle hash scroll on page load
+    if (typeof window !== 'undefined' && window.location.hash === '#elections-section') {
+      setTimeout(() => {
+        document.getElementById('elections-section')?.scrollIntoView({ behavior: 'smooth' })
+      }, 100)
+    }
   }, [])
 
   const fetchElections = async () => {
@@ -133,16 +140,17 @@ export default function AdminDashboard() {
 
       {/* Create Button */}
       <div className="flex justify-end">
-        <Link href="/admin/elections/new">
-          <Button className="gap-2 bg-primary hover:bg-primary/90">
-            <Plus className="w-4 h-4" />
-            Create New Election
-          </Button>
+        <Link 
+          href="/admin/elections/new"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#1FD7BE] to-[#17c5ae] hover:from-[#17c5ae] hover:to-[#0fa89a] text-white rounded-xl text-sm font-medium transition-all shadow-lg shadow-[#1FD7BE]/25 hover:shadow-[#1FD7BE]/40"
+        >
+          <Plus className="w-4 h-4" />
+          Buat Pemilihan Baru
         </Link>
       </div>
 
       {/* Elections Table */}
-      <Card>
+      <Card id="elections-section">
         <CardHeader className="border-b border-border">
           <CardTitle>Elections</CardTitle>
           <CardDescription>Manage all elections and view their status</CardDescription>
@@ -196,11 +204,12 @@ export default function AdminDashboard() {
                         {status}
                       </Badge>
                       <div className="flex gap-2">
-                        <Link href={`/admin/elections/${election.id}`}>
-                          <Button variant="outline" size="sm" className="gap-1">
-                            <span className="hidden sm:inline">Manage</span>
-                            <ArrowRight className="w-3 h-3" />
-                          </Button>
+                        <Link 
+                          href={`/admin/elections/${election.id}`}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md text-sm font-medium transition-colors"
+                        >
+                          <span className="hidden sm:inline">Manage</span>
+                          <ArrowRight className="w-3 h-3" />
                         </Link>
                       </div>
                     </div>

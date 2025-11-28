@@ -6,10 +6,9 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { ErrorDialog } from '@/components/ui/error-dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { AlertCircle, CheckCircle } from 'lucide-react'
+import { AlertCircle, CheckCircle, Shield, Scan, ArrowRight, User, Lock, MapPin, Calendar } from 'lucide-react'
 import { FaceScanner } from '@/components/face-scanner'
 import { Combobox } from '@/components/ui/combobox'
 
@@ -52,7 +51,6 @@ export default function RegisterPage() {
   const [selectedVillageId, setSelectedVillageId] = useState('')
   const [loadingRegions, setLoadingRegions] = useState(false)
 
-  // Load provinces on mount
   useEffect(() => {
     fetchProvinces()
   }, [])
@@ -161,13 +159,11 @@ export default function RegisterPage() {
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
-  // Step 1: Validate form and proceed to face capture
   const handleProceedToFace = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsModalOpen(false);
 
-    // VALIDASI DASAR
     if (!formData.nik || !formData.fullName || !formData.dob || !formData.city || !formData.province || !formData.password) {
         setError('Semua kolom wajib diisi');
         return;
@@ -183,12 +179,10 @@ export default function RegisterPage() {
         return;
     }
 
-    // Proceed to face capture (no DB registration yet)
     setCurrentStep('face');
     setShowFaceScanner(true);
   };
 
-  // Step 2: After face captured, register account with embedding
   const handleFaceCapture = async (embedding: number[]) => {
     setFaceEmbedding(embedding)
     setFaceVerified(true)
@@ -196,7 +190,6 @@ export default function RegisterPage() {
     setIsLoading(true)
 
     try {
-      // Now register with face embedding included
       const response = await fetch('/api/auth/register-with-face', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -219,7 +212,6 @@ export default function RegisterPage() {
         throw new Error(data.error || 'Registrasi gagal');
       }
 
-      // Auto login after registration
       const loginResponse = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -252,50 +244,64 @@ export default function RegisterPage() {
     }
   }
 
-  // Legacy handler for FaceScanner (will be updated)
-  const handleFaceVerified = async () => {
-    // This will be called by FaceScanner, but we need embedding
-    // So we'll update FaceScanner to pass embedding
-  }
+  const handleFaceVerified = async () => {}
 
   if (success) {
     return (
-      <Card className="w-full max-w-md shadow-lg">
-        <CardContent className="pt-12 pb-12 flex flex-col items-center text-center">
-          <CheckCircle className="w-16 h-16 text-green-600 mb-4" />
-          <h2 className="text-2xl font-semibold text-foreground mb-2">Registrasi Berhasil</h2>
-          <p className="text-muted-foreground mb-6">Akun Anda telah dibuat dan diverifikasi. Anda akan diarahkan ke halaman dashboard dalam beberapa saat.</p>
-        </CardContent>
-      </Card>
+      <div className="glass-panel rounded-2xl overflow-hidden p-8">
+        <div className="flex flex-col items-center text-center space-y-4">
+          <div className="w-20 h-20 rounded-full bg-[#1FD7BE]/10 flex items-center justify-center">
+            <CheckCircle className="w-10 h-10 text-[#1FD7BE]" />
+          </div>
+          <h2 className="text-2xl font-bold text-[#3A3F52]">Registrasi Berhasil!</h2>
+          <p className="text-[#9AA3B8] max-w-sm">
+            Akun Anda telah dibuat dan diverifikasi. Mengalihkan ke dashboard...
+          </p>
+          <div className="flex items-center gap-2 text-sm text-[#1FD7BE]">
+            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <span>Memuat dashboard...</span>
+          </div>
+        </div>
+      </div>
     )
   }
 
   if (currentStep === 'face' && showFaceScanner) {
     return (
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="border-b border-border bg-secondary/50 py-6">
-          <CardTitle className="text-2xl">Verifikasi Identitas Anda</CardTitle>
-          <CardDescription>Kami perlu memindai wajah Anda untuk mengamankan akun Anda</CardDescription>
-        </CardHeader>
-        <CardContent className="pt-6">
+      <div className="glass-panel rounded-2xl overflow-hidden">
+        <div className="p-6 border-b border-[#DDE6F4]/50 bg-gradient-to-r from-[#1FD7BE]/5 to-transparent">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#1FD7BE]/10 flex items-center justify-center">
+              <Scan className="w-5 h-5 text-[#1FD7BE]" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-[#3A3F52]">Registrasi Biometrik</h2>
+              <p className="text-sm text-[#9AA3B8]">Langkah terakhir untuk mengamankan akun Anda</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-6">
           <FaceScanner 
             onSuccessWithEmbedding={handleFaceCapture}
             title="Registrasi Wajah"
-            description="Wajah Anda akan digunakan untuk memverifikasi identitas saat pemilihan"
+            description="Wajah Anda akan digunakan untuk verifikasi saat voting"
             mode="register"
           />
           <Button 
             variant="outline" 
-            className="w-full mt-4"
+            className="w-full mt-4 border-[#DDE6F4] hover:bg-[#DDE6F4]/50 text-[#3A3F52]"
             onClick={() => {
               setShowFaceScanner(false)
               setCurrentStep('form')
             }}
           >
-            Kembali
+            Kembali ke Form
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     )
   }
 
@@ -306,167 +312,219 @@ export default function RegisterPage() {
         message={modalMessage} 
         onClose={() => setIsModalOpen(false)} 
       />
-    <Card className="w-full max-w-md shadow-lg">
-      <CardHeader className="border-b border-border bg-secondary/50 py-6">
-        <CardTitle className="text-2xl">Daftar sebagai Pemilih</CardTitle>
-        <CardDescription>Buat akun Anda untuk berpartisipasi dalam pemilihan</CardDescription>
-      </CardHeader>
-      <CardContent className="pt-6">
-        <form onSubmit={handleProceedToFace} className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="nik" className="text-sm font-medium">NIK</Label>
-            <Input
-              id="nik"
-              name="nik"
-              placeholder="16-digit NIK"
-              value={formData.nik}
-              onChange={handleChange}
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="fullName" className="text-sm font-medium">Nama Lengkap</Label>
-            <Input
-              id="fullName"
-              name="fullName"
-              placeholder="Nama lengkap Anda"
-              value={formData.fullName}
-              onChange={handleChange}
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="dob" className="text-sm font-medium">Tanggal Lahir</Label>
-            <Input
-              id="dob"
-              name="dob"
-              type="date"
-              value={formData.dob}
-              onChange={handleChange}
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="province" className="text-sm font-medium">Provinsi</Label>
-              <Combobox
-                options={provinces}
-                value={selectedProvinceId}
-                onChange={handleProvinceChange}
-                placeholder={provinces.length === 0 ? "Loading..." : "Pilih Provinsi"}
-                searchPlaceholder="Cari provinsi..."
-                emptyText="Provinsi tidak ditemukan."
-                disabled={isLoading || provinces.length === 0}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="city" className="text-sm font-medium">Kota/Kabupaten</Label>
-              <Combobox
-                options={regencies}
-                value={selectedRegencyId}
-                onChange={handleRegencyChange}
-                placeholder={
-                  !selectedProvinceId ? "Pilih provinsi terlebih dahulu" : 
-                  loadingRegions ? "Loading..." : 
-                  "Pilih Kota/Kabupaten"
-                }
-                searchPlaceholder="Cari kota/kabupaten..."
-                emptyText="Kota/Kabupaten tidak ditemukan."
-                disabled={isLoading || !selectedProvinceId || loadingRegions}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="district" className="text-sm font-medium">Kecamatan</Label>
-              <Combobox
-                options={districts}
-                value={selectedDistrictId}
-                onChange={handleDistrictChange}
-                placeholder={
-                  !selectedRegencyId ? "Pilih kota/kabupaten terlebih dahulu" : 
-                  loadingRegions ? "Loading..." : 
-                  "Pilih Kecamatan"
-                }
-                searchPlaceholder="Cari kecamatan..."
-                emptyText="Kecamatan tidak ditemukan."
-                disabled={isLoading || !selectedRegencyId || loadingRegions}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="subDistrict" className="text-sm font-medium">Kelurahan/Desa</Label>
-              <Combobox
-                options={villages}
-                value={selectedVillageId}
-                onChange={handleVillageChange}
-                placeholder={
-                  !selectedDistrictId ? "Pilih kecamatan terlebih dahulu" : 
-                  loadingRegions ? "Loading..." : 
-                  "Pilih Kelurahan/Desa"
-                }
-                searchPlaceholder="Cari kelurahan/desa..."
-                emptyText="Kelurahan/Desa tidak ditemukan."
-                disabled={isLoading || !selectedDistrictId || loadingRegions}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password" className="text-sm font-medium">Password</Label>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              placeholder="Minimal 6 karakter"
-              value={formData.password}
-              onChange={handleChange}
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="confirmPassword" className="text-sm font-medium">Konfirmasi Password</Label>
-            <Input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              placeholder="Konfirmasi password Anda"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              disabled={isLoading}
-            />
-          </div>
-
-          <Button
-            type="submit"
-            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium h-10"
-            disabled={isLoading}
-          >
-            {isLoading ? 'Mendaftar...' : 'Lanjut ke Verifikasi'}
-          </Button>
-        </form>
-
-        <div className="mt-6 pt-6 border-t border-border">
-          <p className="text-sm text-muted-foreground text-center">Sudah punya akun?</p>
-          <Link href="/auth/login">
-            <Button variant="outline" className="w-full mt-3" disabled={isLoading}>
-              Kembali ke Login
-            </Button>
-          </Link>
+      
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="text-center space-y-2">
+          <h1 className="text-3xl font-bold text-[#3A3F52] tracking-tight">
+            Daftar Akun Baru
+          </h1>
+          <p className="text-[#9AA3B8]">
+            Buat akun untuk berpartisipasi dalam voting yang aman
+          </p>
         </div>
-      </CardContent>
-    </Card>
+
+        {/* Main Card */}
+        <div className="glass-panel rounded-2xl overflow-hidden border-glow">
+          <div className="p-6 sm:p-8">
+            <form onSubmit={handleProceedToFace} className="space-y-5">
+              {error && (
+                <Alert variant="destructive" className="bg-red-50 border-red-200">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              {/* Personal Info Section */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-[#3A3F52]">
+                  <User className="w-4 h-4 text-[#1FD7BE]" />
+                  <span>Informasi Pribadi</span>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="nik" className="text-sm font-medium text-[#3A3F52]">NIK</Label>
+                  <Input
+                    id="nik"
+                    name="nik"
+                    placeholder="16 digit NIK Anda"
+                    value={formData.nik}
+                    onChange={handleChange}
+                    className="h-11 glass-input rounded-xl text-[#3A3F52] placeholder:text-[#9AA3B8]/60"
+                    disabled={isLoading}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="fullName" className="text-sm font-medium text-[#3A3F52]">Nama Lengkap</Label>
+                  <Input
+                    id="fullName"
+                    name="fullName"
+                    placeholder="Nama sesuai KTP"
+                    value={formData.fullName}
+                    onChange={handleChange}
+                    className="h-11 glass-input rounded-xl text-[#3A3F52] placeholder:text-[#9AA3B8]/60"
+                    disabled={isLoading}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="dob" className="text-sm font-medium text-[#3A3F52]">Tanggal Lahir</Label>
+                  <Input
+                    id="dob"
+                    name="dob"
+                    type="date"
+                    value={formData.dob}
+                    onChange={handleChange}
+                    className="h-11 glass-input rounded-xl text-[#3A3F52]"
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+
+              {/* Location Section */}
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-[#3A3F52]">
+                  <MapPin className="w-4 h-4 text-[#1FD7BE]" />
+                  <span>Alamat Domisili</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-[#3A3F52]">Provinsi</Label>
+                    <Combobox
+                      options={provinces}
+                      value={selectedProvinceId}
+                      onChange={handleProvinceChange}
+                      placeholder={provinces.length === 0 ? "Loading..." : "Pilih Provinsi"}
+                      searchPlaceholder="Cari provinsi..."
+                      emptyText="Tidak ditemukan."
+                      disabled={isLoading || provinces.length === 0}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-[#3A3F52]">Kota/Kabupaten</Label>
+                    <Combobox
+                      options={regencies}
+                      value={selectedRegencyId}
+                      onChange={handleRegencyChange}
+                      placeholder={!selectedProvinceId ? "Pilih provinsi dulu" : loadingRegions ? "Loading..." : "Pilih Kota"}
+                      searchPlaceholder="Cari kota..."
+                      emptyText="Tidak ditemukan."
+                      disabled={isLoading || !selectedProvinceId || loadingRegions}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-[#3A3F52]">Kecamatan</Label>
+                    <Combobox
+                      options={districts}
+                      value={selectedDistrictId}
+                      onChange={handleDistrictChange}
+                      placeholder={!selectedRegencyId ? "Pilih kota dulu" : loadingRegions ? "Loading..." : "Pilih Kecamatan"}
+                      searchPlaceholder="Cari kecamatan..."
+                      emptyText="Tidak ditemukan."
+                      disabled={isLoading || !selectedRegencyId || loadingRegions}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-[#3A3F52]">Kelurahan</Label>
+                    <Combobox
+                      options={villages}
+                      value={selectedVillageId}
+                      onChange={handleVillageChange}
+                      placeholder={!selectedDistrictId ? "Pilih kecamatan dulu" : loadingRegions ? "Loading..." : "Pilih Kelurahan"}
+                      searchPlaceholder="Cari kelurahan..."
+                      emptyText="Tidak ditemukan."
+                      disabled={isLoading || !selectedDistrictId || loadingRegions}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Password Section */}
+              <div className="space-y-4 pt-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-[#3A3F52]">
+                  <Lock className="w-4 h-4 text-[#1FD7BE]" />
+                  <span>Keamanan Akun</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-sm font-medium text-[#3A3F52]">Password</Label>
+                    <Input
+                      id="password"
+                      name="password"
+                      type="password"
+                      placeholder="Min. 6 karakter"
+                      value={formData.password}
+                      onChange={handleChange}
+                      className="h-11 glass-input rounded-xl text-[#3A3F52] placeholder:text-[#9AA3B8]/60"
+                      disabled={isLoading}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword" className="text-sm font-medium text-[#3A3F52]">Konfirmasi</Label>
+                    <Input
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      type="password"
+                      placeholder="Ulangi password"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      className="h-11 glass-input rounded-xl text-[#3A3F52] placeholder:text-[#9AA3B8]/60"
+                      disabled={isLoading}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full h-12 bg-gradient-to-r from-[#1FD7BE] to-[#17c5ae] hover:from-[#17c5ae] hover:to-[#0fa89a] text-white font-semibold rounded-xl shadow-lg shadow-[#1FD7BE]/25 hover:shadow-[#1FD7BE]/40 transition-all duration-300 group"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <span className="flex items-center gap-2">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Memproses...
+                  </span>
+                ) : (
+                  <>
+                    Lanjut Verifikasi Wajah
+                    <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
+              </Button>
+            </form>
+          </div>
+
+          {/* Login Link */}
+          <div className="px-6 sm:px-8 pb-6 sm:pb-8">
+            <div className="pt-4 border-t border-[#DDE6F4]">
+              <p className="text-sm text-[#9AA3B8] text-center mb-3">Sudah punya akun?</p>
+              <Link 
+                href="/auth/login"
+                className="block w-full h-11 border-2 border-[#DDE6F4] hover:border-[#1FD7BE] hover:bg-[#1FD7BE]/5 text-[#3A3F52] font-medium rounded-xl transition-all duration-300 text-center leading-[40px]"
+              >
+                Masuk ke Akun
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Security Notice */}
+        <div className="flex items-center justify-center gap-2 text-xs text-[#9AA3B8]">
+          <Shield className="w-3.5 h-3.5" />
+          <span>Data Anda dilindungi dengan enkripsi tingkat tinggi</span>
+        </div>
+      </div>
     </>
   )
 }
