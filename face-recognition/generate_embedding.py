@@ -111,8 +111,8 @@ def generate_embedding_json(image_path: str, output_path: str = None):
 def main():
     """Main function"""
     # Path to wete.jpg
-    image_path = "C:\\Users\\devon\\votely-platform\\face-recognition\\data\\farrel.jpg"
-    output_path = "C:\\Users\\devon\\votely-platform\\face-recognition\\data\\farrel_embedding.json"
+    image_path = "C:\\Users\\devon\\votely-platform\\face-recognition\\data\\kenan.jpg"
+    output_path = "C:\\Users\\devon\\votely-platform\\face-recognition\\data\\kenan_embedding.json"
     
     # Check if image exists
     if not Path(image_path).exists():
