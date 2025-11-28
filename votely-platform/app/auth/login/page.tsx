@@ -9,11 +9,16 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
 import { ErrorDialog } from '@/components/ui/error-dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { AlertCircle, Lock, User } from 'lucide-react'
+import { AlertCircle, Lock, User, Wallet } from 'lucide-react'
 import { FaceScanner } from '@/components/face-scanner'
+import { useConnect } from "thirdweb/react"
+import { inAppWallet } from "thirdweb/wallets"
+import { client } from "@/lib/thirdweb"
 
 export default function LoginPage() {
   const router = useRouter()
+  const { connect } = useConnect()
+  
   const [nik, setNik] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -21,7 +26,8 @@ export default function LoginPage() {
   const [faceVerified, setFaceVerified] = useState(false)
   const [showFaceScanner, setShowFaceScanner] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false); 
-  const [modalMessage, setModalMessage] = useState("");
+  const [modalMessage, setModalMessage] = useState("")
+  const [isConnectingWallet, setIsConnectingWallet] = useState(false);
 
   const performLogin = async () => {
     if (!nik || !password) {
@@ -44,6 +50,29 @@ export default function LoginPage() {
 
       if (!response.ok) {
         throw new Error(data.error || 'Terjadi kesalahan saat login.')
+      }
+
+      // Auto-connect Thirdweb In-App Wallet setelah login berhasil
+      console.log('Auto-connecting Thirdweb In-App Wallet...')
+      setIsConnectingWallet(true)
+      
+      try {
+        const wallet = inAppWallet()
+        await connect(async () => {
+          // Use guest mode - simple & free, no email/phone needed
+          await wallet.connect({
+            client,
+            strategy: "guest",
+            // Guest wallet uses browser storage, unique per browser session
+          })
+          return wallet
+        })
+        console.log('Wallet connected successfully')
+      } catch (walletError) {
+        console.error('⚠️ Wallet connection failed (non-blocking):', walletError)
+        // Don't block login if wallet connection fails
+      } finally {
+        setIsConnectingWallet(false)
       }
 
       // Check user role and redirect accordingly
@@ -132,7 +161,7 @@ export default function LoginPage() {
 
           {faceVerified && (
             <Alert className="bg-green-50 border-green-200">
-              <AlertDescription className="text-green-800 text-sm">✓ Face verified successfully</AlertDescription>
+              <AlertDescription className="text-green-800 text-sm">Face verified successfully</AlertDescription>
             </Alert>
           )}
 
@@ -170,9 +199,20 @@ export default function LoginPage() {
           <Button
             type="submit"
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium h-10"
-            disabled={isLoading}
+            disabled={isLoading || isConnectingWallet}
           >
-            {isLoading ? 'Proses...' : faceVerified ? 'Login Selesai' : 'Masuk'}
+            {isConnectingWallet ? (
+              <>
+                <Wallet className="w-4 h-4 mr-2 animate-pulse" />
+                Connecting Wallet...
+              </>
+            ) : isLoading ? (
+              'Proses...'
+            ) : faceVerified ? (
+              'Login Selesai'
+            ) : (
+              'Masuk'
+            )}
           </Button>
         </form>
 

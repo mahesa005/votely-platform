@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     // 4. Load Smart Contract instance dengan Wallet User
     const contract = new ethers.Contract(CONTRACT_ADDRESS, VotingArtifact.abi, voterWallet);
 
-    console.log(`🗳️ Voting: User ${user.walletAddress} -> Election ${electionId}, Candidate ${candidateId}`);
+    console.log(`Voting: User ${user.walletAddress} -> Election ${electionId}, Candidate ${candidateId}`);
 
     // 5. EKSEKUSI VOTE (ZERO GAS)
     // override gasPrice: 0 agar tidak butuh saldo ETH

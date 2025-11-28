@@ -59,15 +59,15 @@ export async function createElectionService(params: CreateElectionParams) {
   const adminWallet = new ethers.Wallet(privateKey, provider)
   
   // Debug: Check ABI loaded
-  console.log("🔍 VotingABI loaded:", VotingABI ? "✅ YES" : "❌ NO");
-  console.log("🔍 ABI length:", VotingABI?.length || 0);
+  console.log("VotingABI loaded:", VotingABI ? "YES" : "NO");
+  console.log("ABI length:", VotingABI?.length || 0);
   
   // contract object that is callable by adminWaller signer
   const votingContract = new ethers.Contract(contractAddress, VotingABI, adminWallet)
 
   // Get current nonce from chain
   let currentNonce = await provider.getTransactionCount(adminWallet.address, "latest");
-  console.log(`🔢 Initial Nonce: ${currentNonce}`);
+  console.log(`Initial Nonce: ${currentNonce}`);
 
   // 3. Create Election in Blockchain
   console.log("Inisiasi Transaksi Blockchain: Membuat Election")
@@ -102,8 +102,8 @@ export async function createElectionService(params: CreateElectionParams) {
   currentNonce++
 
   console.log('TX sent:', tx.hash);
-  console.log('🔍 tx.data:', tx.data); // Should NOT be empty!
-  console.log('🔍 tx.data length:', tx.data?.length || 0);
+  console.log('tx.data:', tx.data); // Should NOT be empty!
+  console.log('tx.data length:', tx.data?.length || 0);
   
   // 4. Retrieve ElectionId 
   const receipt = await tx.wait();
@@ -152,7 +152,7 @@ export async function createElectionService(params: CreateElectionParams) {
   // 5. Add Candidates to Blockchain (loop)
   // Add candidates sequentially - ethers will auto-manage nonce
     for (const [index, cand] of candidates.entries()) {
-    console.log(`🔗 Adding Candidate ${index+1}/${candidates.length}: ${cand.name} with Nonce ${currentNonce}`);
+    console.log(`Adding Candidate ${index+1}/${candidates.length}: ${cand.name} with Nonce ${currentNonce}`);
 
     try {
         const addTx = await votingContract.addCandidate(
@@ -174,7 +174,7 @@ export async function createElectionService(params: CreateElectionParams) {
         await addTx.wait(); 
 
     } catch (err) {
-        console.error(`❌ Gagal menambah kandidat ${cand.name}:`, err);
+        console.error(`[ERROR] Gagal menambah kandidat ${cand.name}:`, err);
         throw new Error(`Gagal menambah kandidat ke Blockchain: ${cand.name}`);
     }
     }
