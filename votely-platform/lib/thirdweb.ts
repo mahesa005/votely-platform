@@ -2,9 +2,18 @@
 import { createThirdwebClient, getContract } from "thirdweb";
 import { defineChain } from "thirdweb/chains";
 
+// Validate required env variables
+if (!process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID) {
+  throw new Error("NEXT_PUBLIC_THIRDWEB_CLIENT_ID is required in .env");
+}
+
+if (!process.env.NEXT_PUBLIC_CONTRACT_ADDRESS) {
+  throw new Error("NEXT_PUBLIC_CONTRACT_ADDRESS is required in .env");
+}
+
 // 1. Inisialisasi Client
 export const client = createThirdwebClient({
-  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID as string,
+  clientId: process.env.NEXT_PUBLIC_THIRDWEB_CLIENT_ID,
 });
 
 // 2. Definisikan Chain (Sepolia Testnet)
@@ -14,5 +23,5 @@ export const chain = defineChain(11155111); // ID Sepolia
 export const votingContract = getContract({
   client,
   chain,
-  address: "f447555bdbc886b1ec74b0b9a98b481b"
+  address: process.env.NEXT_PUBLIC_CONTRACT_ADDRESS,
 });

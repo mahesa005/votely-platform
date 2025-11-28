@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -8,48 +8,165 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { mockElections, mockCandidates } from '@/lib/mock-data'
 import { Camera, CheckCircle, Users, ArrowLeft, Loader2 } from 'lucide-react'
+import { useActiveAccount, ConnectButton } from "thirdweb/react"
+import { prepareContractCall, sendTransaction } from "thirdweb"
+import { votingContract, client } from "@/lib/thirdweb"
+import { inAppWallet } from "thirdweb/wallets"
 
-// --- IMPORT THIRDWEB ---
-import { prepareContractCall } from "thirdweb"
-import { TransactionButton, useActiveAccount } from "thirdweb/react"
-import { votingContract } from "@/lib/thirdweb" // Pastikan path ini benar
-// -----------------------
+type Candidate = {
+  id: string
+  name: string
+  party: string
+  description: string | null
+  photoUrl: string | null
+  orderIndex: number
+  electionId: string
+}
+
+type Election = {
+  id: string
+  name: string
+  description: string | null
+  level: string
+  province: string | null
+  city: string | null
+  startTime: string
+  endTime: string
+  candidates: Candidate[]
+}
 
 export default function VotingPage() {
   const params = useParams()
   const router = useRouter()
-  const account = useActiveAccount() // Cek apakah user sudah login wallet
+  const account = useActiveAccount() // Get user's In-App Wallet
 
-  // Konversi ID string dari URL ke BigInt untuk smart contract
+  // Konversi ID string dari URL
   const electionIdParam = params.electionId as string
-  const election = mockElections.find(e => e.id === electionIdParam)
-  const candidates = mockCandidates[election?.id || ''] || []
-
+  
+  const [election, setElection] = useState<Election | null>(null)
+  const [loading, setLoading] = useState(true)
   const [faceVerified, setFaceVerified] = useState(false)
   const [votedFor, setVotedFor] = useState<string | null>(null)
   const [showConfirmDialog, setShowConfirmDialog] = useState(false)
-  const [selectedCandidate, setSelectedCandidate] = useState<any>(null)
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   
-  // State local untuk hasil (nanti bisa diganti fetch real-time dari blockchain)
+  // State local untuk hasil
   const [showResults, setShowResults] = useState(false)
+
+  // Fetch election data from API
+  useEffect(() => {
+    async function fetchElection() {
+      try {
+        const response = await fetch(`/api/elections/${electionIdParam}`)
+        const result = await response.json()
+        
+        if (result.success && result.data) {
+          setElection(result.data)
+        } else {
+          console.error('Failed to fetch election:', result.error)
+        }
+      } catch (error) {
+        console.error('Error fetching election:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchElection()
+  }, [electionIdParam])
+
+  // Helper function to get election status
+  const getElectionStatus = (election: Election) => {
+    const now = new Date()
+    const startTime = new Date(election.startTime)
+    const endTime = new Date(election.endTime)
+    
+    if (now < startTime) return 'Upcoming'
+    if (now > endTime) return 'Finished'
+    return 'Active'
+  }
+
 
   if (!election) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-md">
           <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">Election not found</p>
+            {loading ? (
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+            ) : (
+              <p className="text-muted-foreground">Election not found</p>
+            )}
           </CardContent>
         </Card>
       </div>
     )
   }
 
-  const handleVoteClick = (candidate: any) => {
+  const candidates = election.candidates || []
+  const electionStatus = getElectionStatus(election)
+
+  const handleVoteClick = (candidate: Candidate) => {
     setSelectedCandidate(candidate)
     setShowConfirmDialog(true)
+  }
+
+  // Submit vote with In-App Wallet (Client-side signing + Gasless)
+  const handleConfirmVote = async () => {
+    if (!selectedCandidate || !account) {
+      alert('Please connect your wallet first')
+      return
+    }
+    
+    setIsSubmitting(true)
+    try {
+      console.log(`Preparing vote transaction...`)
+      console.log(`   Voter: ${account.address}`)
+      console.log(`   Election: ${election.id}`)
+      console.log(`   Candidate: ${selectedCandidate.id}`)
+
+      // Prepare contract call
+      const transaction = prepareContractCall({
+        contract: votingContract,
+        method: "function vote(uint256 electionId, uint256 candidateId)",
+        params: [BigInt(election.id), BigInt(selectedCandidate.id)],
+      })
+
+      // User signs transaction with their In-App Wallet
+      // Admin wallet pays gas via Thirdweb Paymaster (if configured)
+      console.log(`Signing transaction with user wallet...`)
+      const receipt = await sendTransaction({
+        transaction,
+        account, // User's In-App Wallet signs
+      })
+
+      console.log(`Vote confirmed on-chain!`)
+      console.log(`   Transaction Hash: ${receipt.transactionHash}`)
+      console.log(`   From: ${account.address} (User's unique identity)`)
+      
+      setVotedFor(selectedCandidate.id)
+      setShowConfirmDialog(false)
+      setShowResults(true)
+
+      // Optional: Record vote in database
+      await fetch('/api/vote/record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          electionId: election.id,
+          candidateId: selectedCandidate.id,
+          txHash: receipt.transactionHash,
+        }),
+      })
+
+    } catch (error: any) {
+      console.error('[ERROR] Vote error:', error)
+      alert(`Voting gagal: ${error.message}`)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Fungsi Face Verification (Simulasi)
@@ -73,27 +190,39 @@ export default function VotingPage() {
             <ArrowLeft className="w-4 h-4" />
             Back to Election
           </Link>
-          <div className="text-sm text-muted-foreground">
-            {election.name}
+          <div className="flex items-center gap-4">
+            <div className="text-sm text-muted-foreground">
+              {election.name}
+            </div>
+            <ConnectButton
+              client={client}
+              wallets={[inAppWallet()]}
+              connectButton={{ label: "Connect Wallet" }}
+              connectModal={{ size: "compact" }}
+            />
           </div>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
-        {!account ? (
-             <Alert className="border-red-200 bg-red-50">
-             <AlertDescription className="text-red-900">
-               Please connect your wallet first to vote.
-             </AlertDescription>
-           </Alert>
-        ) : election.status !== 'Active' ? (
+        {electionStatus !== 'Active' ? (
           <Alert className="border-amber-200 bg-amber-50">
             <AlertDescription className="text-amber-900">
-              Voting is {election.status === 'Upcoming' ? 'not open yet' : 'closed'}
+              Voting is {electionStatus === 'Upcoming' ? 'not open yet' : 'closed'}
             </AlertDescription>
           </Alert>
         ) : !showResults ? (
           <>
+            {/* Wallet Connection Info */}
+            {account && (
+              <Alert className="border-green-200 bg-green-50">
+                <AlertDescription className="text-green-900 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4" />
+                  <span>Wallet Connected: {account.address.slice(0, 6)}...{account.address.slice(-4)}</span>
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Step 1: Face Verification */}
             <Card className={`border-2 transition-all ${faceVerified ? 'border-green-200 bg-green-50' : 'border-border'}`}>
               <CardHeader>
@@ -162,7 +291,7 @@ export default function VotingPage() {
                       <div className="w-full h-56 bg-muted overflow-hidden">
                          {/* Gunakan Image component Next.js jika bisa, atau img biasa */}
                         <img
-                          src={candidate.image || "/placeholder.svg"}
+                          src={candidate.photoUrl || "/placeholder.svg"}
                           alt={candidate.name}
                           className="w-full h-full object-cover"
                         />
@@ -174,7 +303,7 @@ export default function VotingPage() {
                       </CardHeader>
 
                       <CardContent className="space-y-3">
-                        <p className="text-sm text-foreground">{candidate.description}</p>
+                        <p className="text-sm text-foreground">{candidate.description || 'No description available'}</p>
                         <Button
                           variant="outline"
                           onClick={() => handleVoteClick(candidate)}
@@ -204,42 +333,41 @@ export default function VotingPage() {
                       <p className="text-sm text-muted-foreground">{selectedCandidate.party}</p>
                     </div>
 
-                    {/* --- TRANSACTION BUTTON (INTI INTEGRASI) --- */}
-                    <TransactionButton
-                      transaction={() => {
-                        // PENTING: Konversi ID ke BigInt sesuai Solidity uint256
-                        // Pastikan ID di mock-data Anda bisa dikonversi ke angka (misal "1", "2")
-                        // Jika ID di mock data "c1", Anda harus mapping ke integer 1 dulu.
-                        const _electionId = BigInt(election.id); 
-                        const _candidateId = BigInt(selectedCandidate.id);
+                    {!account ? (
+                      <Alert className="border-amber-200 bg-amber-50">
+                        <AlertDescription className="text-amber-900">
+                          Please connect your wallet first to vote
+                        </AlertDescription>
+                      </Alert>
+                    ) : (
+                      <div className="text-xs text-muted-foreground bg-blue-50 p-3 rounded border border-blue-200">
+                        <p className="font-semibold text-blue-900 mb-1">Your Vote Identity:</p>
+                        <p className="font-mono text-blue-700">{account.address}</p>
+                        <p className="mt-2 text-blue-800">Gas fee akan dibayar oleh sistem (Gasless Transaction)</p>
+                      </div>
+                    )}
 
-                        return prepareContractCall({
-                          contract: votingContract,
-                          method: "function vote(uint256 _electionId, uint256 _candidateId)",
-                          params: [_electionId, _candidateId],
-                        });
-                      }}
-                      onTransactionConfirmed={(receipt) => {
-                        console.log("Vote confirmed:", receipt);
-                        setVotedFor(selectedCandidate.id);
-                        setShowConfirmDialog(false);
-                        setShowResults(true);
-                      }}
-                      onError={(error) => {
-                        console.error("Vote failed:", error);
-                        alert(`Voting Gagal: ${error.message}`);
-                      }}
-                      theme="dark" // Sesuaikan tema
+                    {/* Submit vote - Client signs with In-App Wallet */}
+                    <Button
+                      onClick={handleConfirmVote}
+                      disabled={isSubmitting || !account}
                       className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
                     >
-                      Confirm & Vote On-Chain
-                    </TransactionButton>
-                    {/* ------------------------------------------- */}
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Signing & Submitting...
+                        </>
+                      ) : (
+                        'Sign & Vote'
+                      )}
+                    </Button>
                     
                     <Button 
                       variant="ghost" 
                       onClick={() => setShowConfirmDialog(false)} 
                       className="w-full"
+                      disabled={isSubmitting}
                     >
                       Cancel
                     </Button>
