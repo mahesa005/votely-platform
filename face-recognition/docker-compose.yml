@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  face-recognition:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: face-recognition-api
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - FLASK_DEBUG=false
+    volumes:
+      # Mount data folder for embeddings (optional)
+      - ./data:/app/data:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s

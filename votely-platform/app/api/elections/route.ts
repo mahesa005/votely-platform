@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server'
 import { createElectionService } from '@/lib/services/electionService'
 import { getAllElections, getElectionsForUser } from '@/lib/elections'
 import { cookies } from 'next/headers'
-import { jwtVerify } from 'jose'
+import jwt from 'jsonwebtoken'
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'your-secret-key')
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret'
 
 // Helper function to serialize BigInt to string
 function serializeElection(election: any) {
@@ -37,17 +37,22 @@ export async function GET(req: Request) {
         // Get elections for logged-in user
         const cookieStore = await cookies()
         const token = cookieStore.get('token')
+        
+        console.log("[ELECTIONS] Token exists:", !!token)
 
         if (!token) {
+            console.log("[ELECTIONS] No token found in cookies")
             return NextResponse.json({
                 success: false,
-                error: 'Unauthorized'
+                error: 'Unauthorized - No token'
             }, { status: 401 })
         }
 
         try {
-            const { payload } = await jwtVerify(token.value, JWT_SECRET)
-            const userId = payload.userId as string
+            console.log("[ELECTIONS] Verifying token...")
+            const decoded = jwt.verify(token.value, JWT_SECRET) as { userId: string }
+            console.log("[ELECTIONS] Token verified, userId:", decoded.userId)
+            const userId = decoded.userId
 
             const elections = await getElectionsForUser(userId)
             const serializedElections = elections.map(serializeElection)
@@ -56,6 +61,7 @@ export async function GET(req: Request) {
                 data: serializedElections
             })
         } catch (error) {
+            console.error('Token verification error:', error)
             return NextResponse.json({
                 success: false,
                 error: 'Invalid token'

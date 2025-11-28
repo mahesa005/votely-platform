@@ -22,10 +22,13 @@ export async function POST(request: Request) {
         cookieStore.set("token", result.token, {
         httpOnly: true, 
         secure: process.env.NODE_ENV === "production", 
-        sameSite: "strict", 
+        sameSite: "lax", 
         maxAge: 60 * 60 * 24, 
         path: "/", 
         });
+        
+        console.log("[LOGIN] Token set successfully for user:", result.user.id);
+        
         return NextResponse.json(
             { 
                 success: true,
