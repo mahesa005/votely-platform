@@ -82,7 +82,7 @@ export async function GET(
         }
       })
 
-      votes.forEach(v => {
+      votes.forEach((v: { candidateId: bigint; _count: { candidateId: number } }) => {
         voteCounts[v.candidateId.toString()] = v._count.candidateId
         totalVotes += v._count.candidateId
       })
