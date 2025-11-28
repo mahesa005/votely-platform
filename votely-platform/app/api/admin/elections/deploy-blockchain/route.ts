@@ -132,8 +132,8 @@ export async function POST(request: NextRequest) {
     console.log('Blockchain election ID:', chainElectionId);
 
     // Sort candidates by orderIndex before adding to blockchain
-    const sortedCandidates = election.candidates.sort((a, b) => a.orderIndex - b.orderIndex);
-    console.log('Adding candidates in order:', sortedCandidates.map(c => `${c.orderIndex}: ${c.name}`));
+    const sortedCandidates = election.candidates.sort((a: any, b: any) => a.orderIndex - b.orderIndex);
+    console.log('Adding candidates in order:', sortedCandidates.map((c: any) => `${c.orderIndex}: ${c.name}`));
 
     // Add candidates to blockchain and save their blockchain IDs
     let blockchainCandidateId = 1n; // Blockchain candidate IDs start from 1
