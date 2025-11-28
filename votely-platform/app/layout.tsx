@@ -1,15 +1,24 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Space_Grotesk, Plus_Jakarta_Sans } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/react'
 import { ThirdwebProvider } from 'thirdweb/react';
 import './globals.css'
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const spaceGrotesk = Space_Grotesk({ 
+  subsets: ["latin"],
+  variable: '--font-space-grotesk',
+  display: 'swap',
+});
+
+const plusJakarta = Plus_Jakarta_Sans({ 
+  subsets: ["latin"],
+  variable: '--font-plus-jakarta',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
-  title: 'Votely - Secure Voting Platform',
-  description: 'A secure, modern voting platform for government elections',
+  title: 'Votely - Blockchain E-Voting Platform',
+  description: 'Secure, transparent, and tamper-proof voting powered by blockchain technology and AI biometric verification',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -31,7 +40,7 @@ export const metadata: Metadata = {
 }
 
 export const viewport = {
-  themeColor: 'oklch(0.35 0.12 260)',
+  themeColor: '#1FD7BE',
 }
 
 export default function RootLayout({
@@ -40,8 +49,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className={`font-sans antialiased`}>
+    <html lang="en" className={`${spaceGrotesk.variable} ${plusJakarta.variable}`}>
+      <body className="font-sans antialiased">
         <ThirdwebProvider>
           {children}
         </ThirdwebProvider>

@@ -6,9 +6,9 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen votely-bg">
       <Navbar />
-      <main className="flex-1 px-4 py-8 max-w-7xl mx-auto w-full">
+      <main className="flex-1 px-4 sm:px-6 pb-12 max-w-7xl mx-auto w-full">
         {children}
       </main>
     </div>
