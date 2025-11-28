@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
@@ -11,6 +11,12 @@ import { ErrorDialog } from '@/components/ui/error-dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertCircle, CheckCircle } from 'lucide-react'
 import { FaceScanner } from '@/components/face-scanner'
+import { Combobox } from '@/components/ui/combobox'
+
+type Region = {
+  id: string
+  name: string
+}
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -34,6 +40,121 @@ export default function RegisterPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalMessage, setModalMessage] = useState('')
   const [faceEmbedding, setFaceEmbedding] = useState<number[] | null>(null)
+
+  // Region data
+  const [provinces, setProvinces] = useState<Region[]>([])
+  const [regencies, setRegencies] = useState<Region[]>([])
+  const [districts, setDistricts] = useState<Region[]>([])
+  const [villages, setVillages] = useState<Region[]>([])
+  const [selectedProvinceId, setSelectedProvinceId] = useState('')
+  const [selectedRegencyId, setSelectedRegencyId] = useState('')
+  const [selectedDistrictId, setSelectedDistrictId] = useState('')
+  const [selectedVillageId, setSelectedVillageId] = useState('')
+  const [loadingRegions, setLoadingRegions] = useState(false)
+
+  // Load provinces on mount
+  useEffect(() => {
+    fetchProvinces()
+  }, [])
+
+  const fetchProvinces = async () => {
+    try {
+      const response = await fetch('https://www.emsifa.com/api-wilayah-indonesia/api/provinces.json')
+      const data = await response.json()
+      setProvinces(data)
+    } catch (error) {
+      console.error('Error fetching provinces:', error)
+    }
+  }
+
+  const fetchRegencies = async (provinceId: string) => {
+    setLoadingRegions(true)
+    try {
+      const response = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/regencies/${provinceId}.json`)
+      const data = await response.json()
+      setRegencies(data)
+      setDistricts([])
+      setVillages([])
+    } catch (error) {
+      console.error('Error fetching regencies:', error)
+    } finally {
+      setLoadingRegions(false)
+    }
+  }
+
+  const fetchDistricts = async (regencyId: string) => {
+    setLoadingRegions(true)
+    try {
+      const response = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/districts/${regencyId}.json`)
+      const data = await response.json()
+      setDistricts(data)
+      setVillages([])
+    } catch (error) {
+      console.error('Error fetching districts:', error)
+    } finally {
+      setLoadingRegions(false)
+    }
+  }
+
+  const fetchVillages = async (districtId: string) => {
+    setLoadingRegions(true)
+    try {
+      const response = await fetch(`https://www.emsifa.com/api-wilayah-indonesia/api/villages/${districtId}.json`)
+      const data = await response.json()
+      setVillages(data)
+    } catch (error) {
+      console.error('Error fetching villages:', error)
+    } finally {
+      setLoadingRegions(false)
+    }
+  }
+
+  const handleProvinceChange = (value: string) => {
+    const province = provinces.find(p => p.id === value)
+    if (province) {
+      setSelectedProvinceId(value)
+      setFormData(prev => ({ ...prev, province: province.name, city: '', district: '', subDistrict: '' }))
+      setSelectedRegencyId('')
+      setSelectedDistrictId('')
+      setSelectedVillageId('')
+      setRegencies([])
+      setDistricts([])
+      setVillages([])
+      fetchRegencies(value)
+    }
+  }
+
+  const handleRegencyChange = (value: string) => {
+    const regency = regencies.find(r => r.id === value)
+    if (regency) {
+      setSelectedRegencyId(value)
+      setFormData(prev => ({ ...prev, city: regency.name, district: '', subDistrict: '' }))
+      setSelectedDistrictId('')
+      setSelectedVillageId('')
+      setDistricts([])
+      setVillages([])
+      fetchDistricts(value)
+    }
+  }
+
+  const handleDistrictChange = (value: string) => {
+    const district = districts.find(d => d.id === value)
+    if (district) {
+      setSelectedDistrictId(value)
+      setFormData(prev => ({ ...prev, district: district.name, subDistrict: '' }))
+      setSelectedVillageId('')
+      setVillages([])
+      fetchVillages(value)
+    }
+  }
+
+  const handleVillageChange = (value: string) => {
+    const village = villages.find(v => v.id === value)
+    if (village) {
+      setSelectedVillageId(value)
+      setFormData(prev => ({ ...prev, subDistrict: village.name }))
+    }
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -235,53 +356,70 @@ export default function RegisterPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="city" className="text-sm font-medium">Kota/Kabupaten</Label>
-              <Input
-                id="city"
-                name="city"
-                placeholder="Kota/Kabupaten"
-                value={formData.city}
-                onChange={handleChange}
-                disabled={isLoading}
-              />
-            </div>
+          <div className="space-y-3">
             <div className="space-y-2">
               <Label htmlFor="province" className="text-sm font-medium">Provinsi</Label>
-              <Input
-                id="province"
-                name="province"
-                placeholder="Provinsi"
-                value={formData.province}
-                onChange={handleChange}
-                disabled={isLoading}
+              <Combobox
+                options={provinces}
+                value={selectedProvinceId}
+                onChange={handleProvinceChange}
+                placeholder={provinces.length === 0 ? "Loading..." : "Pilih Provinsi"}
+                searchPlaceholder="Cari provinsi..."
+                emptyText="Provinsi tidak ditemukan."
+                disabled={isLoading || provinces.length === 0}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="city" className="text-sm font-medium">Kota/Kabupaten</Label>
+              <Combobox
+                options={regencies}
+                value={selectedRegencyId}
+                onChange={handleRegencyChange}
+                placeholder={
+                  !selectedProvinceId ? "Pilih provinsi terlebih dahulu" : 
+                  loadingRegions ? "Loading..." : 
+                  "Pilih Kota/Kabupaten"
+                }
+                searchPlaceholder="Cari kota/kabupaten..."
+                emptyText="Kota/Kabupaten tidak ditemukan."
+                disabled={isLoading || !selectedProvinceId || loadingRegions}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="district" className="text-sm font-medium">Kecamatan</Label>
-              <Input
-                id="district"
-                name="district"
-                placeholder="Kecamatan"
-                value={formData.district}
-                onChange={handleChange}
-                disabled={isLoading}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="subDistrict" className="text-sm font-medium">Kelurahan</Label>
-              <Input
-                id="subDistrict"
-                name="subDistrict"
-                placeholder="Kelurahan"
-                value={formData.subDistrict}
-                onChange={handleChange}
-                disabled={isLoading}
+              <Combobox
+                options={districts}
+                value={selectedDistrictId}
+                onChange={handleDistrictChange}
+                placeholder={
+                  !selectedRegencyId ? "Pilih kota/kabupaten terlebih dahulu" : 
+                  loadingRegions ? "Loading..." : 
+                  "Pilih Kecamatan"
+                }
+                searchPlaceholder="Cari kecamatan..."
+                emptyText="Kecamatan tidak ditemukan."
+                disabled={isLoading || !selectedRegencyId || loadingRegions}
               />
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="subDistrict" className="text-sm font-medium">Kelurahan/Desa</Label>
+              <Combobox
+                options={villages}
+                value={selectedVillageId}
+                onChange={handleVillageChange}
+                placeholder={
+                  !selectedDistrictId ? "Pilih kecamatan terlebih dahulu" : 
+                  loadingRegions ? "Loading..." : 
+                  "Pilih Kelurahan/Desa"
+                }
+                searchPlaceholder="Cari kelurahan/desa..."
+                emptyText="Kelurahan/Desa tidak ditemukan."
+                disabled={isLoading || !selectedDistrictId || loadingRegions}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
