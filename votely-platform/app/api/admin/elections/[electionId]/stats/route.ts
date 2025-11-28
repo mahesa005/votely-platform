@@ -62,7 +62,7 @@ export async function GET(
       select: {
         userId: true
       }
-    }).then(votes => votes.length).catch(() => totalVotes);
+    }).then((votes: { userId: string }[]) => votes.length).catch(() => totalVotes);
 
     // Build candidate stats
     const candidateStats = election.candidates?.map((candidate: any) => {
