@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
 
     // Get NIK from request body or from JWT token
     let userNik = nik
+    let userId: string | null = null
     
     if (!userNik) {
       // Try to get NIK from JWT token
@@ -30,15 +31,25 @@ export async function POST(req: NextRequest) {
         try {
           const decoded = verify(token, JWT_SECRET) as any
           userNik = decoded.nik
+          userId = decoded.userId
         } catch (err) {
           console.error('JWT verification failed:', err)
         }
       }
     }
 
+    // Fallback: If no NIK in token but we have userId, get NIK from database
+    if (!userNik && userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: { penduduk: { select: { nik: true } } }
+      })
+      userNik = user?.penduduk?.nik
+    }
+
     if (!userNik) {
       return NextResponse.json(
-        { error: 'NIK is required for face verification' },
+        { error: 'NIK is required for face verification. Please login again.' },
         { status: 400 }
       )
     }

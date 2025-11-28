@@ -165,17 +165,20 @@ export function FaceScanner({
             body: JSON.stringify({ image: imageData, nik })
           })
 
+          const result = await response.json()
+
           if (!response.ok) {
-            const result = await response.json()
-            if (result.error?.includes('No face embedding found')) {
+            if (result.error?.includes('No face embedding found') || result.error?.includes('not found')) {
               setStatusMessage('Face not registered yet')
               verifyingRef.current = false
               return
             }
-            throw new Error('Verification failed')
+            // Log actual error for debugging
+            console.error('Verification API error:', result)
+            setStatusMessage(result.error || 'Verification failed - retrying...')
+            verifyingRef.current = false
+            return
           }
-
-          const result = await response.json()
           
           if (!result.face_detected) {
             setStatusMessage('No face detected - adjust position')

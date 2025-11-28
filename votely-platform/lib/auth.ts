@@ -145,11 +145,12 @@ export async function loginVoterAccount(nik: string, password: string) {
     throw new Error("Kombinasi NIK atau password salah.");
   }
 
-  // C. Generate Token
+  // C. Generate Token (include NIK for face verification)
   const token = jwt.sign(
     {
       userId: user.id,
       role: user.role,
+      nik: nik,  // Include NIK for face verification
     },
     JWT_SECRET,
     { expiresIn: "1d" } // Token valid 1 hari
