@@ -190,7 +190,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## 👥 Contributors
 
-- Mahesa Fadhilla - [@mahesa005](https://github.com/mahesa005)
+- Mahesa Fadhillah Andre - [@mahesa005](https://github.com/mahesa005)
 - Muhammad Farrel Wibowo - [@faawibowo](https://github.com/faawibowo)
 - Devon Wiraditya Tanumihardja - [@DevonWiraditya](https://github.com/DevonWiraditya)
 - Muhammad Azizdzaki Khrisnanurmuflih - [@Azizdzaki](https://github.com/Azizdzaki)
