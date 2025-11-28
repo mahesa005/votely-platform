@@ -16,6 +16,7 @@ type Election = {
   province: string | null
   startTime: string
   endTime: string
+  chainElectionId: bigint | null
   candidates: any[]
   _count?: {
     votes: number
@@ -165,10 +166,20 @@ export default function AdminDashboard() {
                     className="flex items-center justify-between gap-4 p-4 rounded-lg hover:bg-muted transition-colors border border-border"
                   >
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-foreground truncate">{election.name}</h3>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-foreground truncate">{election.name}</h3>
+                        {election.chainElectionId && (
+                          <Badge className="bg-purple-100 text-purple-800 border-0 text-xs">
+                            On-chain
+                          </Badge>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
                         <Calendar className="w-3 h-3" />
                         <span>{formatDate(election.startTime)} - {formatDate(election.endTime)}</span>
+                        {election.chainElectionId && (
+                          <span className="text-purple-600">• Chain ID: {election.chainElectionId.toString()}</span>
+                        )}
                       </div>
                     </div>
 

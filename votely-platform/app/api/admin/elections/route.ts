@@ -10,10 +10,12 @@ function serializeElection(election: any) {
     ...election,
     id: election.id.toString(),
     chainElectionId: election.chainElectionId?.toString() || null,
+    deletedAt: election.deletedAt?.toISOString() || null,
     candidates: election.candidates?.map((c: any) => ({
       ...c,
       id: c.id.toString(),
       electionId: c.electionId.toString(),
+      chainCandidateId: c.chainCandidateId?.toString() || null,
     })) || [],
   };
 }
@@ -39,10 +41,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch elections with vote counts
+    // Fetch elections with vote counts (exclude soft-deleted)
     const elections = await prisma.election.findMany({
+      where: {
+        deletedAt: null
+      },
       include: {
-        candidates: true,
+        candidates: {
+          orderBy: {
+            orderIndex: 'asc'
+          }
+        },
         creator: {
           include: {
             penduduk: true
@@ -96,7 +105,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, level, city, province, startTime, endTime } = body;
+    const { name, description, level, city, province, startTime, endTime, candidates } = body;
 
     // Validate required fields
     if (!name || !description || !level || !startTime || !endTime) {
@@ -124,16 +133,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create election
-    const election = await createElection({
-      name,
-      description,
-      level,
-      city: city || null,
-      province: province || null,
-      startTime: start,
-      endTime: end,
-      createdBy: user.id,
+    // Create election with candidates in a transaction
+    const election = await prisma.$transaction(async (tx) => {
+      // Create election
+      const newElection = await tx.election.create({
+        data: {
+          name,
+          description,
+          level,
+          city: city || null,
+          province: province || null,
+          startTime: start,
+          endTime: end,
+          createdBy: user.id,
+        }
+      });
+
+      // Create candidates if provided
+      if (candidates && Array.isArray(candidates) && candidates.length > 0) {
+        await tx.candidate.createMany({
+          data: candidates.map((c: { name: string; party: string; description?: string }, index: number) => ({
+            electionId: newElection.id,
+            name: c.name,
+            party: c.party,
+            description: c.description || null,
+            orderIndex: index,
+          }))
+        });
+      }
+
+      // Return election with candidates
+      return tx.election.findUnique({
+        where: { id: newElection.id },
+        include: { candidates: true }
+      });
     });
 
     return NextResponse.json({

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Calendar, MapPin, Users, ArrowLeft, Loader2 } from 'lucide-react'
+import { Calendar, MapPin, Users, ArrowLeft, Loader2, BarChart3, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 
 type Candidate = {
@@ -17,6 +17,7 @@ type Candidate = {
   description: string | null
   photoUrl: string | null
   orderIndex: number
+  voteCount?: number
 }
 
 type Election = {
@@ -29,6 +30,7 @@ type Election = {
   startTime: string
   endTime: string
   candidates: Candidate[]
+  totalVotes?: number
   _count?: {
     votes: number
   }
@@ -94,30 +96,41 @@ export default function ElectionDetailPage() {
   const router = useRouter()
   const [election, setElection] = useState<Election | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    async function fetchElection() {
-      try {
+  const fetchElection = async (showRefreshLoader = false) => {
+    try {
+      if (showRefreshLoader) {
+        setRefreshing(true)
+      } else {
         setLoading(true)
-        const response = await fetch(`/api/elections/${params.electionId}`)
-        const data = await response.json()
-
-        if (data.success) {
-          setElection(data.data)
-        } else {
-          setError(data.error || 'Gagal memuat data pemilu')
-        }
-      } catch (err) {
-        console.error('Error fetching election:', err)
-        setError('Gagal memuat data pemilu')
-      } finally {
-        setLoading(false)
       }
-    }
+      // Include results in the fetch
+      const response = await fetch(`/api/elections/${params.electionId}?includeResults=true`)
+      const data = await response.json()
 
+      if (data.success) {
+        setElection(data.data)
+      } else {
+        setError(data.error || 'Gagal memuat data pemilu')
+      }
+    } catch (err) {
+      console.error('Error fetching election:', err)
+      setError('Gagal memuat data pemilu')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
+
+  useEffect(() => {
     fetchElection()
   }, [params.electionId])
+
+  const handleRefresh = () => {
+    fetchElection(true)
+  }
 
   if (loading) {
     return (
@@ -267,7 +280,27 @@ export default function ElectionDetailPage() {
 
         {/* Results Tab */}
         <TabsContent value="results" className="space-y-6">
-          <h2 className="text-lg font-semibold text-foreground">Hasil Pemilu</h2>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-primary" />
+              <h2 className="text-lg font-semibold text-foreground">Hasil Pemilu</h2>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">
+                Total: {election.totalVotes || 0} suara
+              </span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="gap-2"
+              >
+                <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
+          </div>
           {status === 'upcoming' ? (
             <Alert>
               <AlertDescription>
@@ -282,29 +315,48 @@ export default function ElectionDetailPage() {
                     <p className="text-muted-foreground">Belum ada data hasil</p>
                   </CardContent>
                 </Card>
+              ) : (election.totalVotes || 0) === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <p className="text-muted-foreground">Belum ada suara masuk</p>
+                  </CardContent>
+                </Card>
               ) : (
-                candidates.map((candidate) => (
-                  <Card key={candidate.id.toString()}>
-                    <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="text-base">{candidate.name}</CardTitle>
-                          <CardDescription className="text-xs">{candidate.party}</CardDescription>
-                        </div>
-                        <span className="text-lg font-bold text-primary">0%</span>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                        <div
-                          className="bg-primary h-full rounded-full transition-all"
-                          style={{ width: '0%' }}
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2">0 suara</p>
-                    </CardContent>
-                  </Card>
-                ))
+                [...candidates]
+                  .sort((a, b) => (b.voteCount || 0) - (a.voteCount || 0))
+                  .map((candidate, index) => {
+                    const voteCount = candidate.voteCount || 0
+                    const totalVotes = election.totalVotes || 0
+                    const percentage = totalVotes > 0 ? (voteCount / totalVotes) * 100 : 0
+
+                    return (
+                      <Card key={candidate.id.toString()} className={index === 0 ? 'border-primary/50 bg-primary/5' : ''}>
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 flex items-center gap-2">
+                              {index === 0 && totalVotes > 0 && (
+                                <Badge className="bg-yellow-100 text-yellow-800 border-0">Unggul</Badge>
+                              )}
+                              <div>
+                                <CardTitle className="text-base">{candidate.name}</CardTitle>
+                                <CardDescription className="text-xs">{candidate.party}</CardDescription>
+                              </div>
+                            </div>
+                            <span className="text-lg font-bold text-primary">{percentage.toFixed(1)}%</span>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="w-full bg-muted rounded-full h-3 overflow-hidden">
+                            <div
+                              className="bg-primary h-full rounded-full transition-all duration-500"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-2">{voteCount} suara</p>
+                        </CardContent>
+                      </Card>
+                    )
+                  })
               )}
             </div>
           )}
