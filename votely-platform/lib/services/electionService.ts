@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { ethers , type Log} from 'ethers'
-import VotingArtifact from '@/artifacts/contracts/Voting.sol/Voting.json'
+import { VotingABI } from '@/lib/contracts/VotingABI'
 
 // Interface for input parameter
 export interface CandidateInput {
@@ -58,8 +58,12 @@ export async function createElectionService(params: CreateElectionParams) {
   // adminWallet is the signer that has ETH for gas
   const adminWallet = new ethers.Wallet(privateKey, provider)
   
+  // Debug: Check ABI loaded
+  console.log("🔍 VotingABI loaded:", VotingABI ? "✅ YES" : "❌ NO");
+  console.log("🔍 ABI length:", VotingABI?.length || 0);
+  
   // contract object that is callable by adminWaller signer
-  const votingContract = new ethers.Contract(contractAddress, VotingArtifact.abi, adminWallet)
+  const votingContract = new ethers.Contract(contractAddress, VotingABI, adminWallet)
 
   // Get current nonce from chain
   let currentNonce = await provider.getTransactionCount(adminWallet.address, "latest");
@@ -72,21 +76,34 @@ export async function createElectionService(params: CreateElectionParams) {
   const startTimeUnix = Math.floor(new Date(startDateTime).getTime() / 1000);
   const endTimeUnix = Math.floor(new Date(endDateTime).getTime() / 1000);
 
+  // Debug timestamps
+  const currentBlockTime = Math.floor(Date.now() / 1000);
+  console.log("⏰ Current time:", currentBlockTime, new Date(currentBlockTime * 1000).toISOString());
+  console.log("⏰ Start time:  ", startTimeUnix, new Date(startTimeUnix * 1000).toISOString());
+  console.log("⏰ End time:    ", endTimeUnix, new Date(endTimeUnix * 1000).toISOString());
+  
+  // Ensure start time is in the future (add buffer)
+  if (startTimeUnix <= currentBlockTime) {
+    throw new Error(`Start time must be in the future. Current: ${currentBlockTime}, Start: ${startTimeUnix}`);
+  }
+
   const tx = await votingContract.createElection(
     name,
     description,
     startTimeUnix,
     endTimeUnix,
     { 
-        gasLimit: 1000000,
+        gasLimit: 3000000, // Increased gas limit
         nonce:currentNonce
-    } // let ethers auto-manage nonce
+    }
   );
 
   // Increment nonce for next transaction
   currentNonce++
 
   console.log('TX sent:', tx.hash);
+  console.log('🔍 tx.data:', tx.data); // Should NOT be empty!
+  console.log('🔍 tx.data length:', tx.data?.length || 0);
   
   // 4. Retrieve ElectionId 
   const receipt = await tx.wait();
