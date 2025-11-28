@@ -5,6 +5,7 @@ Real-time face recognition dengan webcam
 
 import cv2
 import numpy as np
+import json
 from face_detector import FaceDetector
 from face_aligner import FaceAligner
 from face_embedder import FaceEmbedder
@@ -18,15 +19,15 @@ def main():
     """
     
     # ========================================================================
-    # KONFIGURASI - UBAH DI SINI UNTUK GANTI FOTO REFERENCE
+    # KONFIGURASI - UBAH DI SINI UNTUK GANTI EMBEDDING REFERENCE
     # ========================================================================
     
-    # Path ke foto reference - GANTI NAMA FILE DI SINI jika mau pakai foto lain
+    # Path ke file embedding JSON - GANTI NAMA FILE DI SINI jika mau pakai embedding lain
     # Contoh:
-    #   - "data/wete.jpg"           → File wete.jpg di folder data/
-    #   - "data/john.jpg"           → File john.jpg di folder data/
-    #   - "data/photos/mary.jpg"    → File mary.jpg di folder data/photos/
-    REFERENCE_PHOTO = "data/wete.jpg"  # ← UBAH NAMA FILE DI SINI
+    #   - "data/wete_embedding.json"       → File wete_embedding.json di folder data/
+    #   - "data/john_embedding.json"       → File john_embedding.json di folder data/
+    #   - "data/embeddings/mary_embedding.json" → File di subfolder embeddings/
+    EMBEDDING_FILE = "data/wete_embedding.json"  # ← UBAH NAMA FILE DI SINI
     
     # Nama yang akan ditampilkan saat wajah terdeteksi - GANTI NAMA DI SINI
     REFERENCE_NAME = "WETE"  # ← UBAH NAMA DI SINI
@@ -39,81 +40,59 @@ def main():
     print("FACE RECOGNITION SYSTEM")
     print("=" * 70)
     print()
-    print(f"Reference Photo: {REFERENCE_PHOTO}")
+    print(f"Embedding File: {EMBEDDING_FILE}")
     print(f"Reference Name: {REFERENCE_NAME}")
     print()
     
-    # Check if reference photo exists
-    if not os.path.exists(REFERENCE_PHOTO):
-        print(f"ERROR: File '{REFERENCE_PHOTO}' tidak ditemukan!")
+    # Check if embedding file exists
+    if not os.path.exists(EMBEDDING_FILE):
+        print(f"ERROR: File '{EMBEDDING_FILE}' tidak ditemukan!")
         print()
         print("Pastikan:")
-        print("1. File foto ada di folder yang benar")
+        print("1. File embedding JSON ada di folder yang benar")
         print("2. Nama file ditulis dengan benar (case-sensitive)")
-        print("3. Ekstensi file benar (.jpg, .jpeg, .png)")
+        print("3. Ekstensi file adalah .json")
         print()
         print(f"Contoh struktur folder:")
         print(f"  face-recognition/")
         print(f"  ├── main.py")
         print(f"  └── data/")
-        print(f"      └── wete.jpg  ← Foto harus di sini")
+        print(f"      └── wete_embedding.json  ← File harus di sini")
         return
     
     # Initialize modules
-    print("[1/5] Initializing modules...")
+    print("[1/4] Initializing modules...")
     detector = FaceDetector(backend="mediapipe")
     aligner = FaceAligner()
     embedder = FaceEmbedder(model_name="FaceNet")
     calculator = SimilarityCalculator()
     print("     ✓ Modules ready")
     
-    # Load reference photo
-    print(f"[2/5] Loading reference photo: {REFERENCE_PHOTO}")
-    ref_image = cv2.imread(REFERENCE_PHOTO)
-    
-    if ref_image is None:
-        print(f"     ERROR: Cannot read {REFERENCE_PHOTO}")
-        print("     Pastikan file foto tidak corrupt")
+    # Load embedding from JSON file
+    print(f"[2/4] Loading reference embedding from: {EMBEDDING_FILE}")
+    try:
+        with open(EMBEDDING_FILE, 'r') as f:
+            embedding_data = json.load(f)
+        
+        ref_embedding = np.array(embedding_data['embedding_vector'])
+        embedding_dim = embedding_data['embedding_dimension']
+        
+        print(f"     ✓ Embedding loaded: {embedding_dim}-dimensional vector")
+        print(f"     ✓ Original image: {embedding_data['image_name']}")
+        print(f"     ✓ Embedding quality: {np.linalg.norm(ref_embedding):.4f}")
+        
+    except FileNotFoundError:
+        print(f"     ERROR: File {EMBEDDING_FILE} tidak ditemukan!")
         return
-    
-    print(f"     ✓ Image loaded: {ref_image.shape[1]}x{ref_image.shape[0]} pixels")
-    
-    # Detect face in reference photo
-    print("[3/5] Detecting face in reference photo...")
-    ref_bbox = detector.get_largest_face(ref_image)
-    
-    if ref_bbox is None:
-        print("     ERROR: No face detected in reference photo!")
-        print()
-        print("     Tips:")
-        print("     - Pastikan wajah terlihat jelas dan frontal")
-        print("     - Foto tidak terlalu gelap atau blur")
-        print("     - Wajah tidak tertutup (kacamata hitam, masker, dll)")
-        print("     - Foto tidak terlalu jauh (wajah harus cukup besar)")
+    except KeyError as e:
+        print(f"     ERROR: Format JSON tidak valid! Missing key: {e}")
         return
-    
-    print(f"     ✓ Face detected at position: x={ref_bbox[0]}, y={ref_bbox[1]}, "
-          f"size={ref_bbox[2]}x{ref_bbox[3]}")
-    
-    # Generate reference embedding
-    print("[4/5] Generating reference embedding...")
-    ref_aligned = aligner.align_face(ref_image, ref_bbox)
-    
-    if ref_aligned is None:
-        print("     ERROR: Face alignment failed!")
+    except Exception as e:
+        print(f"     ERROR: Gagal membaca embedding: {e}")
         return
-    
-    ref_embedding = embedder.get_embedding(ref_aligned)
-    
-    if ref_embedding is None:
-        print("     ERROR: Cannot generate reference embedding!")
-        return
-    
-    print(f"     ✓ Embedding generated: {ref_embedding.shape[0]}-dimensional vector")
-    print(f"     ✓ Embedding quality: {np.linalg.norm(ref_embedding):.4f}")
     
     # Start webcam
-    print("[5/5] Starting webcam...")
+    print("[3/4] Starting webcam...")
     cap = cv2.VideoCapture(0)
     
     if not cap.isOpened():
@@ -125,6 +104,8 @@ def main():
         return
     
     print("     ✓ Webcam ready")
+    print()
+    print("[4/4] Initialization complete!")
     print()
     print("=" * 70)
     print("WEBCAM ACTIVE - Press 'q' to quit")

@@ -47,7 +47,15 @@ export default function LoginPage() {
       }
 
       // Check user role and redirect accordingly
+      if (data.data?.role === "ADMIN") {
+        router.push('/admin')
+        console.log("Redirecting to /admin");
+        router.refresh()
+        return
+      }
+
       router.push('/dashboard')
+      console.log("Redirecting to /dashboard");
       router.refresh()
     } catch (err) {
       console.error(err);
@@ -62,11 +70,7 @@ export default function LoginPage() {
     setError('')
     setIsModalOpen(false);
     
-    if (!faceVerified) {
-      setShowFaceScanner(true)
-      return
-    }
-
+    // Skip face verification untuk sementara
     await performLogin()
   }
 

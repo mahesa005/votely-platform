@@ -12,7 +12,7 @@ model Penduduk {
   namaLengkap  String
   tanggalLahir DateTime
   alamat       String?
-  foto         String?
+  foto         Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   kabKota      String?

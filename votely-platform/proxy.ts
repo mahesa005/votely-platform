@@ -4,8 +4,8 @@ import { jwtVerify } from "jose";
 
 const routeRoles = {
   "/admin": ["ADMIN"],           
-  "/voting": ["WARGA"],          
-  "/dashboard": ["WARGA", "ADMIN"]
+  "/elections": ["WARGA"],          
+  "/dashboard": ["WARGA"]  // Admin juga bisa akses dashboard
 };
 
 const authRoutes = ["/auth/login", "/auth/register"];
@@ -27,7 +27,7 @@ export async function proxy(request: NextRequest) {
         const { payload } = await jwtVerify(token, secret);
         
         if (payload.role === "ADMIN") {
-          return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+          return NextResponse.redirect(new URL("/admin", request.url));
         }
         return NextResponse.redirect(new URL("/dashboard", request.url));
         

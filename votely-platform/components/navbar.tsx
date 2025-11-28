@@ -1,15 +1,52 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/Button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { LogOut, Home, Settings, Shield } from 'lucide-react'
+import { LogOut, Home, User } from 'lucide-react'
+
+function getInitials(name?: string) {
+  if (!name) return 'US'
+  return name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+}
 
 export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   const router = useRouter()
   const pathname = usePathname()
+  const [userInitials, setUserInitials] = useState<string>(isAdmin ? 'AD' : 'US')
+
+  useEffect(() => {
+    async function fetchUserData() {
+      if (pathname.startsWith('/auth')) return
+      
+      try {
+        const userResponse = await fetch('/api/auth/me')
+        const userData = await userResponse.json()
+
+        if (userData.success && userData.data?.penduduk?.nik) {
+          const nik = userData.data.penduduk.nik
+          const pendudukResponse = await fetch(`/api/penduduk?nik=${nik}`)
+          const pendudukData = await pendudukResponse.json()
+
+          if (pendudukData.success && pendudukData.data?.namaLengkap) {
+            setUserInitials(getInitials(pendudukData.data.namaLengkap))
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error)
+      }
+    }
+
+    fetchUserData()
+  }, [pathname])
 
   const handleLogout = async () => {
     try {
@@ -41,7 +78,7 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
                 <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full">
                   <Avatar className="h-9 w-9">
                     <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
-                      {isAdmin ? 'AD' : 'US'}
+                      {userInitials}
                     </AvatarFallback>
                   </Avatar>
                 </Button>
@@ -53,14 +90,12 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
                     <span>{isAdmin ? 'Admin Dashboard' : 'Dashboard'}</span>
                   </Link>
                 </DropdownMenuItem>
-                {!isAdmin && (
-                  <DropdownMenuItem asChild>
-                    <Link href="/admin" className="flex items-center gap-2 cursor-pointer">
-                      <Shield className="w-4 h-4" />
-                      <span>Admin Console</span>
-                    </Link>
-                  </DropdownMenuItem>
-                )}
+                <DropdownMenuItem asChild>
+                  <Link href="/user" className="flex items-center gap-2 cursor-pointer">
+                    <User className="w-4 h-4" />
+                    <span>Profil Saya</span>
+                  </Link>
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-2 text-destructive focus:text-destructive cursor-pointer">
                   <LogOut className="w-4 h-4" />

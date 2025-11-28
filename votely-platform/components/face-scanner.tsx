@@ -16,65 +16,102 @@ interface FaceScannerProps {
 export function FaceScanner({ onSuccess, onSkip, title = 'Face Verification', description = 'Position your face in the center and hold still' }: FaceScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [scanning, setScanning] = useState(false)
   const [scanned, setScanned] = useState(false)
   const [error, setError] = useState('')
-  const [cameraReady, setCameraReady] = useState(false)
+  const [verifying, setVerifying] = useState(false)
 
   useEffect(() => {
     if (!scanning) return
 
+    let mounted = true
+
     const startCamera = async () => {
       try {
+        console.log('Requesting camera access...')
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
         })
         
-        if (videoRef.current) {
+        console.log('Camera access granted, stream:', stream)
+        console.log('videoRef.current:', videoRef.current)
+        console.log('mounted:', mounted)
+        
+        if (videoRef.current && mounted) {
+          console.log('Setting srcObject...')
           videoRef.current.srcObject = stream
-          setCameraReady(true)
+          
+          // Set ready immediately after setting srcObject
+          // The autoPlay attribute will handle playing
+          console.log('Scheduling camera ready in 500ms...')
+          setTimeout(() => {
+            console.log('setTimeout fired, mounted:', mounted)
+            if (mounted) {
+              console.log('Setting camera ready')
+              setCameraReady(true)
+            }
+          }, 500)
+        } else {
+          console.log('Skipping srcObject - videoRef or mounted is false')
         }
       } catch (err) {
-        setError('Unable to access camera. Please check permissions.')
-        setScanning(false)
+        console.error('Camera access error:', err)
+        if (mounted) {
+          setError('Unable to access camera. Please check permissions.')
+          setScanning(false)
+          setCameraReady(false)
+        }
       }
     }
 
     startCamera()
 
     return () => {
+      mounted = false
       if (videoRef.current?.srcObject) {
         const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
         tracks.forEach(track => track.stop())
       }
+      setCameraReady(false)
     }
   }, [scanning])
 
-  const handleScan = async () => {
-    if (!videoRef.current || !canvasRef.current) return
-
+  const handleStartScan = () => {
     try {
       setError('')
-      const context = canvasRef.current.getContext('2d')
-      if (!context) return
-
-      // Capture frame from video
-      context.drawImage(videoRef.current, 0, 0, canvasRef.current.width, canvasRef.current.height)
-
-      await new Promise(r => setTimeout(r, 800))
-
-      setScanned(true)
-      setScanning(false)
+      setVerifying(true)
       
-      // Stop camera
-      if (videoRef.current?.srcObject) {
-        const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
-        tracks.forEach(track => track.stop())
+      // Open face verification popup window
+      const width = 720
+      const height = 640
+      const left = (window.screen.width - width) / 2
+      const top = (window.screen.height - height) / 2
+      
+      const popup = window.open(
+        'http://localhost:5000/webcam-verify',
+        'Face Verification',
+        `width=${width},height=${height},left=${left},top=${top},resizable=no,scrollbars=no`
+      )
+      
+      if (!popup) {
+        setError('Please allow popups for face verification.')
+        setVerifying(false)
+        return
       }
-
-      setTimeout(onSuccess, 500)
+      
+      // Check if popup is closed without verification
+      const checkClosed = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(checkClosed)
+          if (verifying && !scanned) {
+            setVerifying(false)
+            setError('Verification cancelled.')
+          }
+        }
+      }, 500)
+      
     } catch (err) {
-      setError('Face scan failed. Please try again.')
+      setError('Failed to start face verification.')
+      setVerifying(false)
     }
   }
 
@@ -107,35 +144,44 @@ export function FaceScanner({ onSuccess, onSkip, title = 'Face Verification', de
           </Alert>
         )}
 
-        {scanning && cameraReady ? (
+        {scanning ? (
           <div className="space-y-4">
             <div className="relative bg-black rounded-lg overflow-hidden aspect-video flex items-center justify-center">
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
+                muted
                 className="w-full h-full object-cover"
+                style={{ transform: 'scaleX(-1)' }}
               />
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-48 h-56 border-2 border-primary rounded-lg opacity-75"></div>
-              </div>
+              {!cameraReady && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                  <div className="text-center">
+                    <div className="w-10 h-10 rounded-full border-2 border-white border-t-transparent animate-spin mx-auto mb-3"></div>
+                    <p className="text-sm text-white">Initializing camera...</p>
+                  </div>
+                </div>
+              )}
+              {cameraReady && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-48 h-56 border-2 border-primary rounded-lg opacity-75"></div>
+                </div>
+              )}
             </div>
             <canvas ref={canvasRef} className="hidden" width={640} height={480} />
-            <p className="text-xs text-muted-foreground text-center">Align your face within the frame</p>
-            <Button onClick={handleScan} className="w-full bg-primary hover:bg-primary/90" disabled={!cameraReady}>
-              Capture Face
-            </Button>
-          </div>
-        ) : scanning && !cameraReady ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="text-center">
-              <div className="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin mx-auto mb-3"></div>
-              <p className="text-sm text-muted-foreground">Initializing camera...</p>
-            </div>
+            {cameraReady && (
+              <>
+                <p className="text-xs text-muted-foreground text-center">Align your face within the frame</p>
+                <Button onClick={handleScan} className="w-full bg-primary hover:bg-primary/90">
+                  Capture Face
+                </Button>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
-            <Button onClick={() => setScanning(true)} className="w-full bg-primary hover:bg-primary/90 h-10">
+            <Button onClick={handleStartScan} className="w-full bg-primary hover:bg-primary/90 h-10">
               Start Face Scan
             </Button>
             {onSkip && (
