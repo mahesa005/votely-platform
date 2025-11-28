@@ -200,3 +200,39 @@ export async function getCurrentUserFromToken(token: string) {
     throw new Error("Token tidak valid atau kadaluarsa.");
   }
 }
+
+/**
+ * Verify JWT token and return user data
+ */
+export async function verifyToken(token: string) {
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; role: string };
+    
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: {
+        id: true,
+        role: true,
+        walletAddress: true,
+        penduduk: {
+          select: {
+            nik: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    return {
+      userId: user.id,
+      role: user.role,
+      nik: user.penduduk?.nik,
+      walletAddress: user.walletAddress,
+    };
+  } catch (error) {
+    return null;
+  }
+}
