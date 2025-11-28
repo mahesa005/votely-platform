@@ -6,7 +6,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/Button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { LogOut, Home, User } from 'lucide-react'
+import { LogOut, Home, User, Shield, ChevronDown, Vote, Settings } from 'lucide-react'
 
 function getInitials(name?: string) {
   if (!name) return 'US'
@@ -22,6 +22,16 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   const router = useRouter()
   const pathname = usePathname()
   const [userInitials, setUserInitials] = useState<string>(isAdmin ? 'AD' : 'US')
+  const [userName, setUserName] = useState<string>(isAdmin ? 'Admin' : 'User')
+  const [scrolled, setScrolled] = useState(false)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 10)
+    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   useEffect(() => {
     async function fetchUserData() {
@@ -38,6 +48,7 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
 
           if (pendudukData.success && pendudukData.data?.namaLengkap) {
             setUserInitials(getInitials(pendudukData.data.namaLengkap))
+            setUserName(pendudukData.data.namaLengkap.split(' ')[0])
           }
         }
       } catch (error) {
@@ -62,44 +73,118 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
   }
 
   return (
-    <nav className="border-b border-border bg-card shadow-sm">
+    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+      scrolled 
+        ? 'bg-white/80 backdrop-blur-xl border-b border-[#DDE6F4]/50 shadow-sm' 
+        : 'bg-transparent'
+    }`}>
       <div className="flex h-16 items-center justify-between px-6 max-w-7xl mx-auto w-full">
-        <Link href={isAdmin ? '/admin' : '/dashboard'} className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-lg">V</span>
+        {/* Logo */}
+        <Link href={isAdmin ? '/admin' : '/dashboard'} className="flex items-center gap-3 group">
+          <div className="relative">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1FD7BE] to-[#17c5ae] flex items-center justify-center shadow-lg shadow-[#1FD7BE]/25 group-hover:shadow-[#1FD7BE]/40 transition-shadow duration-300">
+              <Vote className="w-5 h-5 text-white" />
+            </div>
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#C8FF4D] rounded-full border-2 border-white animate-pulse" />
           </div>
-          <span className="text-xl font-semibold text-foreground">Votely</span>
+          <div className="flex flex-col">
+            <span className="text-lg font-bold text-[#3A3F52] tracking-tight">Votely</span>
+            <span className="text-[10px] text-[#9AA3B8] -mt-1 font-medium tracking-wider uppercase">
+              {isAdmin ? 'Admin Panel' : 'E-Voting'}
+            </span>
+          </div>
         </Link>
 
+        {/* Navigation Links - Center */}
         {!pathname.startsWith('/auth') && (
-          <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-1">
+            <Link 
+              href={isAdmin ? '/admin' : '/dashboard'}
+              className={`h-9 px-4 text-sm font-medium rounded-lg transition-all duration-200 flex items-center ${
+                pathname === (isAdmin ? '/admin' : '/dashboard')
+                  ? 'bg-[#1FD7BE]/10 text-[#1FD7BE]' 
+                  : 'text-[#9AA3B8] hover:text-[#3A3F52] hover:bg-[#DDE6F4]/50'
+              }`}
+            >
+              <Home className="w-4 h-4 mr-2" />
+              Dashboard
+            </Link>
+            {isAdmin && (
+              <button 
+                onClick={() => {
+                  if (pathname !== '/admin') {
+                    router.push('/admin#elections-section')
+                  } else {
+                    document.getElementById('elections-section')?.scrollIntoView({ behavior: 'smooth' })
+                  }
+                }}
+                className="h-9 px-4 text-sm font-medium rounded-lg transition-all duration-200 flex items-center text-[#9AA3B8] hover:text-[#3A3F52] hover:bg-[#DDE6F4]/50"
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Kelola Pemilihan
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* User Menu */}
+        {!pathname.startsWith('/auth') && (
+          <div className="flex items-center gap-3">
+            {/* Status Badge */}
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#1FD7BE]/10 rounded-full">
+              <Shield className="w-3.5 h-3.5 text-[#1FD7BE]" />
+              <span className="text-xs font-medium text-[#1FD7BE]">Terverifikasi</span>
+            </div>
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full">
-                  <Avatar className="h-9 w-9">
-                    <AvatarFallback className="bg-primary text-primary-foreground font-semibold">
+                <Button 
+                  variant="ghost" 
+                  className="h-11 pl-2 pr-3 rounded-full bg-white/50 hover:bg-white border border-[#DDE6F4] hover:border-[#1FD7BE]/30 transition-all duration-200 shadow-sm"
+                >
+                  <Avatar className="h-7 w-7">
+                    <AvatarFallback className="bg-gradient-to-br from-[#1FD7BE] to-[#17c5ae] text-white text-xs font-semibold">
                       {userInitials}
                     </AvatarFallback>
                   </Avatar>
+                  <span className="ml-2 text-sm font-medium text-[#3A3F52] hidden sm:inline">{userName}</span>
+                  <ChevronDown className="w-4 h-4 ml-1 text-[#9AA3B8]" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuContent 
+                align="end" 
+                className="w-56 p-2 bg-white/95 backdrop-blur-xl border border-[#DDE6F4] shadow-xl shadow-[#3A3F52]/5 rounded-xl"
+              >
+                <div className="px-3 py-2 mb-1">
+                  <p className="text-sm font-semibold text-[#3A3F52]">{userName}</p>
+                  <p className="text-xs text-[#9AA3B8]">{isAdmin ? 'Administrator' : 'Pemilih Terdaftar'}</p>
+                </div>
+                <DropdownMenuSeparator className="bg-[#DDE6F4]" />
                 <DropdownMenuItem asChild>
-                  <Link href={isAdmin ? '/admin' : '/dashboard'} className="flex items-center gap-2 cursor-pointer">
+                  <Link 
+                    href={isAdmin ? '/admin' : '/dashboard'} 
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-[#3A3F52] hover:bg-[#1FD7BE]/10 hover:text-[#1FD7BE] transition-colors"
+                  >
                     <Home className="w-4 h-4" />
-                    <span>{isAdmin ? 'Admin Dashboard' : 'Dashboard'}</span>
+                    <span className="text-sm font-medium">{isAdmin ? 'Admin Dashboard' : 'Dashboard'}</span>
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/user" className="flex items-center gap-2 cursor-pointer">
+                  <Link 
+                    href="/user" 
+                    className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-[#3A3F52] hover:bg-[#1FD7BE]/10 hover:text-[#1FD7BE] transition-colors"
+                  >
                     <User className="w-4 h-4" />
-                    <span>Profil Saya</span>
+                    <span className="text-sm font-medium">Profil Saya</span>
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="flex items-center gap-2 text-destructive focus:text-destructive cursor-pointer">
+                <DropdownMenuSeparator className="bg-[#DDE6F4]" />
+                <DropdownMenuItem 
+                  onClick={handleLogout} 
+                  className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+                >
                   <LogOut className="w-4 h-4" />
-                  <span>Logout</span>
+                  <span className="text-sm font-medium">Keluar</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

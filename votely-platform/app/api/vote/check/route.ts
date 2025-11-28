@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('[VoteCheck] Checking vote for user:', user.id, 'name:', user.name);
+    console.log('[VoteCheck] Checking vote for user:', user.id);
 
     const { searchParams } = new URL(request.url);
     const electionId = searchParams.get('electionId');

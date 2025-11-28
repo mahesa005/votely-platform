@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
             chainElectionId,
             candidate.name,
             candidate.party,
-            "" // photoUrl
+            candidate.photoUrl || "" // photoUrl dari upload
           ]
         });
 
@@ -218,6 +218,7 @@ export async function POST(request: NextRequest) {
               name: candidate.name,
               party: candidate.party,
               description: candidate.description || null,
+              photoUrl: candidate.photoUrl || null,
               orderIndex: i,
               chainCandidateId: chainCandidateId || null,
             }

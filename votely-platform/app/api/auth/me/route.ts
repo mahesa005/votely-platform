@@ -21,7 +21,7 @@ export async function GET() {
 
     const user = await getCurrentUserFromToken(token);
 
-    console.log('[AuthMe] Current user:', user?.id, user?.name);
+    console.log('[AuthMe] Current user:', user?.id, user?.penduduk.nik);
 
     const response = NextResponse.json({ 
       success: true,

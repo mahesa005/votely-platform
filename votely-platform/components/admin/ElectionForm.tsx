@@ -1,13 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card'
+import Image from 'next/image'
 
 type ElectionFormProps = {
   onSubmit: (data: ElectionFormData) => Promise<void>
@@ -19,6 +20,8 @@ export type CandidateFormData = {
   name: string
   party: string
   description: string
+  photoUrl?: string
+  photoFile?: File
 }
 
 export type ElectionFormData = {
@@ -72,7 +75,7 @@ export default function ElectionForm({ onSubmit, initialData, submitLabel = 'Cre
   const addCandidate = () => {
     setFormData(prev => ({
       ...prev,
-      candidates: [...prev.candidates, { name: '', party: '', description: '' }]
+      candidates: [...prev.candidates, { name: '', party: '', description: '', photoUrl: '' }]
     }))
   }
 
@@ -88,6 +91,43 @@ export default function ElectionForm({ onSubmit, initialData, submitLabel = 'Cre
       ...prev,
       candidates: prev.candidates.map((c, i) => 
         i === index ? { ...c, [field]: value } : c
+      )
+    }))
+  }
+
+  const handlePhotoUpload = async (index: number, file: File) => {
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/upload/candidate-photo', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (!result.success) {
+        throw new Error(result.error || 'Upload failed')
+      }
+
+      // Update candidate with photo URL
+      setFormData(prev => ({
+        ...prev,
+        candidates: prev.candidates.map((c, i) => 
+          i === index ? { ...c, photoUrl: result.data.url } : c
+        )
+      }))
+    } catch (err: any) {
+      alert(err.message || 'Failed to upload photo')
+    }
+  }
+
+  const removePhoto = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      candidates: prev.candidates.map((c, i) => 
+        i === index ? { ...c, photoUrl: '' } : c
       )
     }))
   }
@@ -245,6 +285,54 @@ export default function ElectionForm({ onSubmit, initialData, submitLabel = 'Cre
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
+                  {/* Photo Upload */}
+                  <div className="space-y-2">
+                    <Label>Photo</Label>
+                    {candidate.photoUrl ? (
+                      <div className="relative w-32 h-32 border rounded-lg overflow-hidden">
+                        <Image
+                          src={candidate.photoUrl}
+                          alt={candidate.name || 'Candidate'}
+                          fill
+                          className="object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removePhoto(index)}
+                          className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id={`candidate-photo-${index}`}
+                          type="file"
+                          accept="image/jpeg,image/jpg,image/png,image/webp"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              handlePhotoUpload(index, file)
+                            }
+                          }}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => document.getElementById(`candidate-photo-${index}`)?.click()}
+                          className="gap-2"
+                        >
+                          <Upload className="w-4 h-4" />
+                          Upload Photo
+                        </Button>
+                        <span className="text-xs text-muted-foreground">Max 5MB (JPEG, PNG, WebP)</span>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Label htmlFor={`candidate-name-${index}`}>Name *</Label>

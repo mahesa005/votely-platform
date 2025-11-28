@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[VoteCast] User attempting to vote:', user.id, user.name);
+    console.log('[VoteCast] User attempting to vote:', user.id);
 
     const body = await request.json();
     const { electionId, candidateId } = body;
@@ -144,8 +144,7 @@ export async function POST(request: NextRequest) {
     const chainCandidateId = (candidate as any).chainCandidateId;
 
     console.log('[VoteCast] Casting vote on blockchain:', {
-      voter: user.id,
-      voterName: user.name,
+      odVoter: user.id,
       voterWallet: user.walletAddress,
       chainElectionId: chainElectionId.toString(),
       chainCandidateId: chainCandidateId.toString(),

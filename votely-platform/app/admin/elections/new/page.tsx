@@ -60,11 +60,12 @@ export default function CreateElectionPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link href="/admin">
-          <Button variant="outline" size="sm" className="gap-2" disabled={isDeploying}>
-            <ArrowLeft className="w-4 h-4" />
-            Back to Dashboard
-          </Button>
+        <Link 
+          href="/admin"
+          className={`inline-flex items-center gap-2 px-3 py-1.5 border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md text-sm font-medium transition-colors ${isDeploying ? 'pointer-events-none opacity-50' : ''}`}
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to Dashboard
         </Link>
       </div>
 

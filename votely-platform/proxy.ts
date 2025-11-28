@@ -4,8 +4,9 @@ import { jwtVerify } from "jose";
 
 const routeRoles = {
   "/admin": ["ADMIN"],           
-  "/elections": ["WARGA"],          
-  "/dashboard": ["WARGA"]  // Admin juga bisa akses dashboard
+  "/elections": ["WARGA", "ADMIN"],          
+  "/dashboard": ["WARGA", "ADMIN"],  // Admin juga bisa akses dashboard
+  "/user": ["WARGA", "ADMIN"]  // Semua user bisa akses profil
 };
 
 const authRoutes = ["/auth/login", "/auth/register"];
@@ -55,7 +56,11 @@ export async function proxy(request: NextRequest) {
       const allowedRoles = routeRoles[matchedRoute as keyof typeof routeRoles];
 
       if (!allowedRoles.includes(userRole)) {
-        return NextResponse.redirect(new URL("/unauthorized", request.url)); 
+        // Redirect to appropriate page based on role instead of unauthorized page
+        if (userRole === "ADMIN") {
+          return NextResponse.redirect(new URL("/admin", request.url));
+        }
+        return NextResponse.redirect(new URL("/dashboard", request.url)); 
       }
 
       return NextResponse.next();
