@@ -66,7 +66,7 @@ export async function GET(
 
     // Build candidate stats
     const candidateStats = election.candidates?.map((candidate: any) => {
-      const voteData = voteCounts.find(v => v.candidateId === candidate.id);
+      const voteData = voteCounts.find((v: { candidateId: bigint; _count: { candidateId: number } }) => v.candidateId === candidate.id);
       const count = voteData?._count.candidateId || 0;
       return {
         id: candidate.id.toString(),
