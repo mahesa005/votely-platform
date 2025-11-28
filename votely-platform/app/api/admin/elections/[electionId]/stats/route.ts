@@ -58,9 +58,9 @@ export async function GET(
       where: {
         electionId: BigInt(electionId)
       },
-      distinct: ['oderId'],
+      distinct: ['userId'],
       select: {
-        oderId: true
+        userId: true
       }
     }).then(votes => votes.length).catch(() => totalVotes);
 
