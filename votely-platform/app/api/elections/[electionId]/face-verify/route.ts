@@ -4,9 +4,10 @@ import path from 'path';
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { electionId: string } }
+  context: { params: Promise<{ electionId: string }> }
 ) {
   try {
+    const { electionId } = await context.params;
     const body = await request.json();
     const { image } = body;
 
