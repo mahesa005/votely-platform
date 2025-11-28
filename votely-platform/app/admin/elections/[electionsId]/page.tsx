@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { ArrowLeft, Calendar, MapPin, Plus, Trash2, Users, Upload, Loader2, BarChart3, RefreshCw, Lock, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Calendar, MapPin, Plus, Trash2, Users, Upload, Loader2, BarChart3, RefreshCw, Lock, AlertTriangle, X } from 'lucide-react'
+import Image from 'next/image'
 
 type Election = {
   id: string
@@ -90,7 +91,9 @@ export default function AdminElectionDetailPage({ params }: { params: Promise<{ 
     name: '',
     party: '',
     description: '',
+    photoUrl: '',
   })
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [deploying, setDeploying] = useState(false)
   const [deployingCandidates, setDeployingCandidates] = useState(false)
@@ -172,7 +175,7 @@ export default function AdminElectionDetailPage({ params }: { params: Promise<{ 
 
       if (data.success) {
         setShowAddCandidate(false)
-        setCandidateForm({ name: '', party: '', description: '' })
+        setCandidateForm({ name: '', party: '', description: '', photoUrl: '' })
         fetchElection(electionId)
       } else {
         alert(data.error || 'Failed to add candidate')
@@ -745,6 +748,80 @@ export default function AdminElectionDetailPage({ params }: { params: Promise<{ 
                         rows={3}
                       />
                     </div>
+                    <div className="space-y-2">
+                      <Label>Photo</Label>
+                      {candidateForm.photoUrl ? (
+                        <div className="relative w-32 h-32 border rounded-lg overflow-hidden">
+                          <Image
+                            src={candidateForm.photoUrl}
+                            alt={candidateForm.name || 'Candidate'}
+                            fill
+                            className="object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setCandidateForm(prev => ({ ...prev, photoUrl: '' }))}
+                            className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 hover:bg-red-700"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            id="candidate-photo"
+                            type="file"
+                            accept="image/jpeg,image/jpg,image/png,image/webp"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0]
+                              if (file) {
+                                setUploadingPhoto(true)
+                                try {
+                                  const formData = new FormData()
+                                  formData.append('file', file)
+                                  const response = await fetch('/api/upload/candidate-photo', {
+                                    method: 'POST',
+                                    body: formData,
+                                  })
+                                  const result = await response.json()
+                                  if (result.success) {
+                                    setCandidateForm(prev => ({ ...prev, photoUrl: result.data.url }))
+                                  } else {
+                                    alert(result.error || 'Upload failed')
+                                  }
+                                } catch (err) {
+                                  alert('Failed to upload photo')
+                                } finally {
+                                  setUploadingPhoto(false)
+                                }
+                              }
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => document.getElementById('candidate-photo')?.click()}
+                            className="gap-2"
+                            disabled={uploadingPhoto}
+                          >
+                            {uploadingPhoto ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-4 h-4" />
+                                Upload Photo
+                              </>
+                            )}
+                          </Button>
+                          <span className="text-xs text-muted-foreground">Max 5MB</span>
+                        </div>
+                      )}
+                    </div>
                     <div className="flex justify-end gap-3">
                       <Button 
                         type="button" 
@@ -779,8 +856,18 @@ export default function AdminElectionDetailPage({ params }: { params: Promise<{ 
               {election.candidates.map((candidate) => (
                 <div
                   key={candidate.id}
-                  className="flex items-center justify-between gap-4 p-4 rounded-lg border border-border hover:bg-muted transition-colors"
+                  className="flex items-center gap-4 p-4 rounded-lg border border-border hover:bg-muted transition-colors"
                 >
+                  {candidate.photoUrl && (
+                    <div className="relative w-16 h-16 rounded-lg overflow-hidden shrink-0">
+                      <Image
+                        src={candidate.photoUrl}
+                        alt={candidate.name}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold text-foreground truncate">{candidate.name}</h3>
