@@ -33,102 +33,108 @@ export default function RegisterPage() {
   const [currentStep, setCurrentStep] = useState<'form' | 'face'>('form')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [modalMessage, setModalMessage] = useState('')
+  const [faceEmbedding, setFaceEmbedding] = useState<number[] | null>(null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
-  const handleRegister = async (e: React.FormEvent) => {
+  // Step 1: Validate form and proceed to face capture
+  const handleProceedToFace = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setIsModalOpen(false);
-    // 1. Mulai Loading
-    setIsLoading(true); 
 
     // VALIDASI DASAR
     if (!formData.nik || !formData.fullName || !formData.dob || !formData.city || !formData.province || !formData.password) {
         setError('Semua kolom wajib diisi');
-        setIsLoading(false); // Stop loading jika error
         return;
     }
 
     if (formData.password !== formData.confirmPassword) {
         setError('Password konfirmasi tidak cocok');
-        setIsLoading(false);
         return;
     }
 
     if (formData.password.length < 6) {
         setError('Password minimal 6 karakter');
-        setIsLoading(false);
         return;
     }
 
-    try {
-        const response = await fetch('/api/auth/register', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                nik: formData.nik,
-                password: formData.password,
-                namaLengkap: formData.fullName, 
-                dob: formData.dob, 
-                provinsi: formData.province,
-                kabKota: formData.city,      
-                kecamatan: formData.district,
-                kelurahan: formData.subDistrict,
-            }),
-        });
+    // Proceed to face capture (no DB registration yet)
+    setCurrentStep('face');
+    setShowFaceScanner(true);
+  };
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || 'Registrasi gagal');
-        }
-
-        const loginResponse = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                nik: formData.nik, 
-                password: formData.password 
-            }),
-        });
-
-        const loginData = await loginResponse.json();
-
-        if (!loginResponse.ok) {
-            throw new Error(loginData.error || 'Login gagal setelah registrasi');
-        }
-
-        setIsLoading(false);
-        
-        // Skip face scanner untuk sementara
-        setSuccess(true);
-        setTimeout(() => {
-          router.push('/dashboard');
-        }, 2000);
-
-    } catch (error: any) {
-        console.error("Error Registration:", error);
-        setModalMessage(error.message || 'Terjadi kesalahan. Silakan coba lagi.');
-        setIsModalOpen(true);
-        setIsLoading(false);
-    }
-};
-
-  const handleFaceVerified = async () => {
+  // Step 2: After face captured, register account with embedding
+  const handleFaceCapture = async (embedding: number[]) => {
+    setFaceEmbedding(embedding)
     setFaceVerified(true)
     setShowFaceScanner(false)
     setIsLoading(true)
 
-    await new Promise(r => setTimeout(r, 800))
-    setSuccess(true)
+    try {
+      // Now register with face embedding included
+      const response = await fetch('/api/auth/register-with-face', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nik: formData.nik,
+          password: formData.password,
+          namaLengkap: formData.fullName, 
+          dob: formData.dob, 
+          provinsi: formData.province,
+          kabKota: formData.city,      
+          kecamatan: formData.district,
+          kelurahan: formData.subDistrict,
+          faceEmbedding: embedding,
+        }),
+      });
 
-    setTimeout(() => {
-      router.push('/dashboard')
-    }, 2000)
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Registrasi gagal');
+      }
+
+      // Auto login after registration
+      const loginResponse = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          nik: formData.nik, 
+          password: formData.password 
+        }),
+      });
+
+      const loginData = await loginResponse.json();
+
+      if (!loginResponse.ok) {
+        throw new Error(loginData.error || 'Login gagal setelah registrasi');
+      }
+
+      setSuccess(true)
+      setTimeout(() => {
+        router.push('/dashboard')
+      }, 2000)
+
+    } catch (error: any) {
+      console.error("Error Registration:", error);
+      setModalMessage(error.message || 'Terjadi kesalahan. Silakan coba lagi.');
+      setIsModalOpen(true);
+      setCurrentStep('form')
+      setShowFaceScanner(false)
+      setFaceVerified(false)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Legacy handler for FaceScanner (will be updated)
+  const handleFaceVerified = async () => {
+    // This will be called by FaceScanner, but we need embedding
+    // So we'll update FaceScanner to pass embedding
   }
 
   if (success) {
@@ -152,11 +158,10 @@ export default function RegisterPage() {
         </CardHeader>
         <CardContent className="pt-6">
           <FaceScanner 
-            onSuccess={handleFaceVerified}
-            onSkip={handleFaceVerified}
+            onSuccessWithEmbedding={handleFaceCapture}
             title="Registrasi Wajah"
             description="Wajah Anda akan digunakan untuk memverifikasi identitas saat pemilihan"
-            nik={formData.nik}
+            mode="register"
           />
           <Button 
             variant="outline" 
@@ -186,7 +191,7 @@ export default function RegisterPage() {
         <CardDescription>Buat akun Anda untuk berpartisipasi dalam pemilihan</CardDescription>
       </CardHeader>
       <CardContent className="pt-6">
-        <form onSubmit={handleRegister} className="space-y-4">
+        <form onSubmit={handleProceedToFace} className="space-y-4">
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />

@@ -8,6 +8,13 @@ export type WalletInfo = {
     encryptedPrivateKey: string
 }
 
+// Generates a new wallet (no database interaction)
+export function generateWallet(): WalletInfo {
+    const wallet = ethers.Wallet.createRandom()
+    const encryptedPrivateKey = encryptKey(wallet.privateKey)
+    return { walletAddress: wallet.address, encryptedPrivateKey }
+}
+
 // Creates user wallet after user has registered
 export async function createUserWallet(userId: string): Promise<WalletInfo> {
     const user = await prisma.user.findUnique({ where: { id: userId}})

@@ -3,7 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
 import { verify } from 'jsonwebtoken'
 
-const PYTHON_API_URL = process.env.PYTHON_API_URL || 'http://localhost:5000'
+// Use 127.0.0.1 explicitly to avoid IPv6 issues
+const PYTHON_API_URL = process.env.PYTHON_API_URL || 'http://127.0.0.1:5000'
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 
 export async function POST(req: NextRequest) {

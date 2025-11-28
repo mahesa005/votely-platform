@@ -7,8 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Camera, CheckCircle, Users, ArrowLeft, Loader2, BarChart3 } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { CheckCircle, Users, ArrowLeft, Loader2, BarChart3 } from 'lucide-react'
+import { FaceScanner } from '@/components/face-scanner'
 
 type Candidate = {
   id: string
@@ -52,6 +53,7 @@ export default function VotingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasAlreadyVoted, setHasAlreadyVoted] = useState(false)
   const [userVotedCandidateId, setUserVotedCandidateId] = useState<string | null>(null)
+  const [showFaceScanner, setShowFaceScanner] = useState(false)
   
   // State local untuk hasil
   const [showResults, setShowResults] = useState(false)
@@ -182,12 +184,10 @@ export default function VotingPage() {
     }
   }
 
-  // Fungsi Face Verification (Simulasi)
-  const handleVerifyFace = async () => {
-    // Di sini nanti logika Python Face Recognition Anda dipanggil
-    // Untuk sekarang kita simulasi delay saja
-    await new Promise(r => setTimeout(r, 800))
+  // Handle face verification success
+  const handleFaceVerified = () => {
     setFaceVerified(true)
+    setShowFaceScanner(false)
   }
 
   const handleBackToElection = () => {
@@ -221,51 +221,40 @@ export default function VotingPage() {
         ) : !showResults ? (
           <>
             {/* Step 1: Face Verification */}
-            <Card className={`border-2 transition-all ${faceVerified ? 'border-green-200 bg-green-50' : 'border-border'}`}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Camera className="w-5 h-5 text-primary" />
+            {!faceVerified ? (
+              <Card className="border-2 border-border">
+                <CardHeader>
+                  <CardTitle className="text-base">Step 1: Face Verification</CardTitle>
+                  <CardDescription>Verify your identity before voting</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <FaceScanner
+                    onSuccess={handleFaceVerified}
+                    title="Verifikasi Wajah"
+                    description="Posisikan wajah Anda di tengah untuk verifikasi identitas"
+                    mode="verify"
+                  />
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-2 border-green-200 bg-green-50">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
                     <div>
                       <CardTitle className="text-base">Step 1: Face Verification</CardTitle>
                       <CardDescription>Verify your identity before voting</CardDescription>
                     </div>
+                    <CheckCircle className="w-5 h-5 text-green-600" />
                   </div>
-                  {faceVerified && <CheckCircle className="w-5 h-5 text-green-600" />}
-                </div>
-              </CardHeader>
-              {!faceVerified ? (
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Ensure you are in a well-lit room. Look straight at the camera.
-                  </p>
-                  <Dialog>
-                    <DialogTrigger asChild>
-                      <Button className="bg-primary hover:bg-primary/90">
-                        Open Camera & Verify
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-md">
-                      <DialogHeader>
-                        <DialogTitle>Face Verification</DialogTitle>
-                        <DialogDescription>Position your face in the frame</DialogDescription>
-                      </DialogHeader>
-                      <div className="bg-muted rounded-lg h-64 flex items-center justify-center">
-                        <Camera className="w-12 h-12 opacity-50" />
-                      </div>
-                      <Button onClick={handleVerifyFace} className="w-full">Verify Now</Button>
-                    </DialogContent>
-                  </Dialog>
-                </CardContent>
-              ) : (
+                </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-2 text-sm text-green-700">
                     <CheckCircle className="w-4 h-4" />
                     <span>Identity Verified Successfully</span>
                   </div>
                 </CardContent>
-              )}
-            </Card>
+              </Card>
+            )}
 
             {/* Step 2: Voting */}
             <Card className={!faceVerified ? "opacity-50 pointer-events-none" : ""}>

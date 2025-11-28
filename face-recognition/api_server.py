@@ -140,6 +140,84 @@ def verify_face():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+
+@app.route('/generate-embedding', methods=['POST'])
+def generate_embedding():
+    """
+    Generate face embedding from base64 image
+    Used during registration to store user's face embedding
+    Returns the embedding vector to be saved in database
+    """
+    try:
+        data = request.get_json()
+        
+        if 'image' not in data:
+            return jsonify({'error': 'No image provided', 'success': False}), 400
+        
+        # Decode base64 image
+        image = decode_base64_image(data['image'])
+        
+        if image is None:
+            return jsonify({'error': 'Failed to decode image', 'success': False}), 400
+        
+        # Detect face
+        faces = detector.detect_faces(image)
+        
+        if not faces or len(faces) == 0:
+            return jsonify({
+                'error': 'No face detected in image. Please try again.',
+                'success': False,
+                'face_detected': False
+            }), 400
+        
+        # Use the largest face (first one)
+        face_bbox = faces[0]
+        
+        # Align face
+        aligned_face = aligner.align_face(image, face_bbox)
+        
+        if aligned_face is None:
+            return jsonify({
+                'error': 'Face alignment failed. Please try again.',
+                'success': False,
+                'face_detected': True
+            }), 400
+        
+        # Generate embedding
+        embedding = embedder.get_embedding(aligned_face)
+        
+        if embedding is None:
+            return jsonify({
+                'error': 'Embedding generation failed. Please try again.',
+                'success': False,
+                'face_detected': True
+            }), 400
+        
+        # Convert embedding to list for JSON serialization
+        embedding_list = embedding.tolist()
+        
+        print(f"[INFO] Generated embedding with dimension: {len(embedding_list)}")
+        
+        return jsonify({
+            'success': True,
+            'embedding': embedding_list,
+            'face_detected': True,
+            'face_location': {
+                'x': int(face_bbox[0]),
+                'y': int(face_bbox[1]),
+                'w': int(face_bbox[2]),
+                'h': int(face_bbox[3])
+            },
+            'embedding_dimension': len(embedding_list),
+            'message': 'Face embedding generated successfully'
+        }), 200
+        
+    except Exception as e:
+        print(f"[ERROR] Embedding generation failed: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e), 'success': False}), 500
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """

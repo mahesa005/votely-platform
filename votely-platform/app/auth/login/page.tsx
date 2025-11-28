@@ -28,7 +28,56 @@ export default function LoginPage() {
   const [isModalOpen, setIsModalOpen] = useState(false); 
   const [modalMessage, setModalMessage] = useState("")
   const [isConnectingWallet, setIsConnectingWallet] = useState(false);
+  const [credentialsValidated, setCredentialsValidated] = useState(false);
 
+  // Step 1: Validate credentials first (NIK & Password)
+  const validateCredentials = async () => {
+    if (!nik || !password) {
+      setError('Mohon isi NIK dan password Anda.')
+      return false
+    }
+
+    setIsLoading(true)
+    setError('')
+
+    try {
+      // Validate credentials with server
+      const response = await fetch('/api/auth/validate-credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nik, password }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'NIK atau password salah.')
+      }
+
+      // Credentials valid, check if user has face registered
+      if (!data.hasFaceRegistered) {
+        // No face registered, skip face verification and login directly
+        setIsLoading(false)
+        await performLogin()
+        return true
+      }
+
+      // Credentials valid and has face registered, proceed to face verification
+      setCredentialsValidated(true)
+      setIsLoading(false)
+      setShowFaceScanner(true)
+      return true
+
+    } catch (err) {
+      console.error(err);
+      setModalMessage(err instanceof Error ? err.message : "NIK atau password salah.");
+      setIsModalOpen(true); 
+      setIsLoading(false);
+      return false
+    }
+  }
+
+  // Step 2: Perform actual login after face verification
   const performLogin = async () => {
     if (!nik || !password) {
       setError('Mohon isi NIK dan password Anda.')
@@ -99,8 +148,13 @@ export default function LoginPage() {
     setError('')
     setIsModalOpen(false);
     
-    // Skip face verification untuk sementara
-    await performLogin()
+    if (!nik || !password) {
+      setError('Mohon isi NIK dan password Anda.')
+      return
+    }
+
+    // Validate credentials first, then show face scanner if valid
+    await validateCredentials()
   }
 
   const handleFaceVerified = async () => {
@@ -119,7 +173,6 @@ export default function LoginPage() {
         <CardContent className="pt-6">
           <FaceScanner 
             onSuccess={handleFaceVerified}
-            onSkip={handleFaceVerified}
             title="Verifikasi Wajah"
             description="Posisikan wajah Anda di tengah untuk verifikasi"
             nik={nik}
