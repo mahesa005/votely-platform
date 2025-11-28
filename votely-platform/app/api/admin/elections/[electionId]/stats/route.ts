@@ -51,7 +51,7 @@ export async function GET(
     });
 
     // Get total votes
-    const totalVotes = voteCounts.reduce((sum, v) => sum + v._count.candidateId, 0);
+    const totalVotes = voteCounts.reduce((sum: number, v: { _count: { candidateId: number } }) => sum + v._count.candidateId, 0);
 
     // Get unique voters count
     const uniqueVoters = await prisma.vote.findMany({
