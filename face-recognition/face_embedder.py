@@ -30,7 +30,7 @@ class FaceEmbedder:
         try:
             from keras_facenet import FaceNet
             self.model = FaceNet()
-            print(f"[INFO] FaceNet model loaded successfully (128-dim embeddings)")
+            print(f"[INFO] FaceNet model loaded successfully (512-dim embeddings)")
         except Exception as e:
             print(f"[ERROR] Failed to load FaceNet: {e}")
             raise

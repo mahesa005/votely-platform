@@ -122,6 +122,7 @@ export default function LoginPage() {
             onSkip={handleFaceVerified}
             title="Verifikasi Wajah"
             description="Posisikan wajah Anda di tengah untuk verifikasi"
+            nik={nik}
           />
           <Button 
             variant="outline" 
