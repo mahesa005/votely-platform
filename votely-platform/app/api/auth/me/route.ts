@@ -9,13 +9,22 @@ export async function GET() {
     const token = cookieStore.get("token")?.value;
 
     if (!token) {
-      return NextResponse.json({ error: "Belum login (Token tidak ada)" }, { status: 401 });
+      return NextResponse.json({ 
+        success: false,
+        error: "Belum login (Token tidak ada)" 
+      }, { status: 401 });
     }
 
     const user = await getCurrentUserFromToken(token);
 
-    return NextResponse.json({ user }, { status: 200 });
+    return NextResponse.json({ 
+      success: true,
+      data: user 
+    }, { status: 200 });
   } catch (error) {
-    return NextResponse.json({ error: "Token invalid atau expired" }, { status: 401 });
+    return NextResponse.json({ 
+      success: false,
+      error: "Token invalid atau expired" 
+    }, { status: 401 });
   }
 }

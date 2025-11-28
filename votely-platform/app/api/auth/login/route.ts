@@ -28,8 +28,9 @@ export async function POST(request: Request) {
         });
         return NextResponse.json(
             { 
+                success: true,
                 message: "Login berhasil", 
-                user: result.user 
+                data: result.user 
             },
             { status: 200 }
         );

@@ -104,8 +104,11 @@ export default function RegisterPage() {
 
         setIsLoading(false);
         
-        setCurrentStep('face');
-        setShowFaceScanner(true);
+        // Skip face scanner untuk sementara
+        setSuccess(true);
+        setTimeout(() => {
+          router.push('/dashboard');
+        }, 2000);
 
     } catch (error: any) {
         console.error("Error Registration:", error);

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getAllElections, createElection, deleteElection } from '@/lib/elections';
+import { getElectionById, updateElection, deleteElection } from '@/lib/elections';
 import { getCurrentUserFromToken } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
 
 // Helper to serialize election data
 function serializeElection(election: any) {
@@ -18,8 +17,11 @@ function serializeElection(election: any) {
   };
 }
 
-// GET - Get all elections (admin only)
-export async function GET(request: NextRequest) {
+// GET - Get election by ID (admin only)
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ electionId: string }> }
+) {
   try {
     // Verify admin
     const cookieStore = await cookies();
@@ -39,34 +41,22 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch elections with vote counts
-    const elections = await prisma.election.findMany({
-      include: {
-        candidates: true,
-        creator: {
-          include: {
-            penduduk: true
-          }
-        },
-        _count: {
-          select: {
-            votes: true
-          }
-        }
-      },
-      orderBy: {
-        startTime: 'desc'
-      }
-    });
+    const { electionId } = await context.params;
+    const election = await getElectionById(electionId);
 
-    const serializedElections = elections.map(serializeElection);
+    if (!election) {
+      return NextResponse.json(
+        { success: false, error: 'Election not found' },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      data: serializedElections,
+      data: serializeElection(election),
     });
   } catch (error) {
-    console.error('Error fetching elections:', error);
+    console.error('Error fetching election:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -74,8 +64,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create new election (admin only)
-export async function POST(request: NextRequest) {
+// PUT - Update election (admin only)
+export async function PUT(
+  request: NextRequest,
+  context: { params: Promise<{ electionId: string }> }
+) {
   try {
     // Verify admin
     const cookieStore = await cookies();
@@ -95,54 +88,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { electionId } = await context.params;
     const body = await request.json();
-    const { name, description, level, city, province, startTime, endTime } = body;
 
-    // Validate required fields
-    if (!name || !description || !level || !startTime || !endTime) {
-      return NextResponse.json(
-        { success: false, error: 'Missing required fields' },
-        { status: 400 }
-      );
+    // Validate dates if provided
+    if (body.startTime && body.endTime) {
+      const start = new Date(body.startTime);
+      const end = new Date(body.endTime);
+
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return NextResponse.json(
+          { success: false, error: 'Invalid date format' },
+          { status: 400 }
+        );
+      }
+
+      if (end <= start) {
+        return NextResponse.json(
+          { success: false, error: 'End time must be after start time' },
+          { status: 400 }
+        );
+      }
+
+      body.startTime = start;
+      body.endTime = end;
     }
 
-    // Validate dates
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-    
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid date format' },
-        { status: 400 }
-      );
-    }
-
-    if (end <= start) {
-      return NextResponse.json(
-        { success: false, error: 'End time must be after start time' },
-        { status: 400 }
-      );
-    }
-
-    // Create election
-    const election = await createElection({
-      name,
-      description,
-      level,
-      city: city || null,
-      province: province || null,
-      startTime: start,
-      endTime: end,
-      createdBy: user.id,
-    });
+    const election = await updateElection(electionId, body);
 
     return NextResponse.json({
       success: true,
       data: serializeElection(election),
-      message: 'Election created successfully',
+      message: 'Election updated successfully',
     });
   } catch (error) {
-    console.error('Error creating election:', error);
+    console.error('Error updating election:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -151,7 +131,10 @@ export async function POST(request: NextRequest) {
 }
 
 // DELETE - Delete election (admin only)
-export async function DELETE(request: NextRequest) {
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ electionId: string }> }
+) {
   try {
     // Verify admin
     const cookieStore = await cookies();
@@ -171,17 +154,8 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'Election ID is required' },
-        { status: 400 }
-      );
-    }
-
-    await deleteElection(id);
+    const { electionId } = await context.params;
+    await deleteElection(electionId);
 
     return NextResponse.json({
       success: true,

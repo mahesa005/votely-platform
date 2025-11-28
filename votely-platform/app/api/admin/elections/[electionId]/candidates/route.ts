@@ -1,25 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getAllElections, createElection, deleteElection } from '@/lib/elections';
+import { addCandidate, getCandidatesByElection } from '@/lib/elections';
 import { getCurrentUserFromToken } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-// Helper to serialize election data
-function serializeElection(election: any) {
+// Helper to serialize candidate data
+function serializeCandidate(candidate: any) {
   return {
-    ...election,
-    id: election.id.toString(),
-    chainElectionId: election.chainElectionId?.toString() || null,
-    candidates: election.candidates?.map((c: any) => ({
-      ...c,
-      id: c.id.toString(),
-      electionId: c.electionId.toString(),
-    })) || [],
+    ...candidate,
+    id: candidate.id.toString(),
+    electionId: candidate.electionId.toString(),
   };
 }
 
-// GET - Get all elections (admin only)
-export async function GET(request: NextRequest) {
+// GET - Get candidates for an election (admin only)
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ electionId: string }> }
+) {
   try {
     // Verify admin
     const cookieStore = await cookies();
@@ -39,34 +37,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch elections with vote counts
-    const elections = await prisma.election.findMany({
-      include: {
-        candidates: true,
-        creator: {
-          include: {
-            penduduk: true
-          }
-        },
-        _count: {
-          select: {
-            votes: true
-          }
-        }
-      },
-      orderBy: {
-        startTime: 'desc'
-      }
-    });
-
-    const serializedElections = elections.map(serializeElection);
+    const { electionId } = await context.params;
+    const candidates = await getCandidatesByElection(electionId);
 
     return NextResponse.json({
       success: true,
-      data: serializedElections,
+      data: candidates.map(serializeCandidate),
     });
   } catch (error) {
-    console.error('Error fetching elections:', error);
+    console.error('Error fetching candidates:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -74,8 +53,11 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create new election (admin only)
-export async function POST(request: NextRequest) {
+// POST - Add candidate to election (admin only)
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ electionId: string }> }
+) {
   try {
     // Verify admin
     const cookieStore = await cookies();
@@ -95,54 +77,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const { electionId } = await context.params;
     const body = await request.json();
-    const { name, description, level, city, province, startTime, endTime } = body;
+    const { name, party, description, photoUrl } = body;
 
     // Validate required fields
-    if (!name || !description || !level || !startTime || !endTime) {
+    if (!name || !party) {
       return NextResponse.json(
-        { success: false, error: 'Missing required fields' },
+        { success: false, error: 'Name and party are required' },
         { status: 400 }
       );
     }
 
-    // Validate dates
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-    
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid date format' },
-        { status: 400 }
-      );
-    }
+    // Get the next order index
+    const existingCandidates = await getCandidatesByElection(electionId);
+    const orderIndex = existingCandidates.length;
 
-    if (end <= start) {
-      return NextResponse.json(
-        { success: false, error: 'End time must be after start time' },
-        { status: 400 }
-      );
-    }
-
-    // Create election
-    const election = await createElection({
+    const candidate = await addCandidate({
+      electionId,
       name,
-      description,
-      level,
-      city: city || null,
-      province: province || null,
-      startTime: start,
-      endTime: end,
-      createdBy: user.id,
+      party,
+      description: description || null,
+      photoUrl: photoUrl || null,
+      orderIndex,
     });
 
     return NextResponse.json({
       success: true,
-      data: serializeElection(election),
-      message: 'Election created successfully',
+      data: serializeCandidate(candidate),
+      message: 'Candidate added successfully',
     });
   } catch (error) {
-    console.error('Error creating election:', error);
+    console.error('Error adding candidate:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }
@@ -150,8 +116,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE - Delete election (admin only)
-export async function DELETE(request: NextRequest) {
+// DELETE - Delete candidate (admin only)
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ electionId: string }> }
+) {
   try {
     // Verify admin
     const cookieStore = await cookies();
@@ -172,23 +141,25 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const candidateId = searchParams.get('candidateId');
 
-    if (!id) {
+    if (!candidateId) {
       return NextResponse.json(
-        { success: false, error: 'Election ID is required' },
+        { success: false, error: 'Candidate ID is required' },
         { status: 400 }
       );
     }
 
-    await deleteElection(id);
+    await prisma.candidate.delete({
+      where: { id: BigInt(candidateId) },
+    });
 
     return NextResponse.json({
       success: true,
-      message: 'Election deleted successfully',
+      message: 'Candidate deleted successfully',
     });
   } catch (error) {
-    console.error('Error deleting election:', error);
+    console.error('Error deleting candidate:', error);
     return NextResponse.json(
       { success: false, error: 'Internal server error' },
       { status: 500 }

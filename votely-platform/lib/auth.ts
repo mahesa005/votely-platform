@@ -175,16 +175,17 @@ export async function getCurrentUserFromToken(token: string) {
     // A. Verify Token
     const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
 
-    // B. Fetch User dari DB
+    // B. Fetch User dari DB - only basic data + NIK
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: {
         id: true,
         role: true,
+        walletAddress: true,
+        createdAt: true,
         penduduk: {
           select: {
             nik: true,
-            namaLengkap: true,
           },
         },
       },
