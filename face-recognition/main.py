@@ -27,7 +27,7 @@ def main():
     #   - "data/wete_embedding.json"       → File wete_embedding.json di folder data/
     #   - "data/john_embedding.json"       → File john_embedding.json di folder data/
     #   - "data/embeddings/mary_embedding.json" → File di subfolder embeddings/
-    EMBEDDING_FILE = "data/wete_embedding.json"  # ← UBAH NAMA FILE DI SINI
+    EMBEDDING_FILE = "C:\\Users\\devon\\votely-platform\\face-recognition\\data\\wete_embedding.json"  # ← UBAH NAMA FILE DI SINI
     
     # Nama yang akan ditampilkan saat wajah terdeteksi - GANTI NAMA DI SINI
     REFERENCE_NAME = "WETE"  # ← UBAH NAMA DI SINI
