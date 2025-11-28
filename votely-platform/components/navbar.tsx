@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter, usePathname } from 'next/navigation'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/Button'
@@ -81,18 +82,13 @@ export function Navbar({ isAdmin = false }: { isAdmin?: boolean }) {
       <div className="flex h-16 items-center justify-between px-6 max-w-7xl mx-auto w-full">
         {/* Logo */}
         <Link href={isAdmin ? '/admin' : '/dashboard'} className="flex items-center gap-3 group">
-          <div className="relative">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#1FD7BE] to-[#17c5ae] flex items-center justify-center shadow-lg shadow-[#1FD7BE]/25 group-hover:shadow-[#1FD7BE]/40 transition-shadow duration-300">
-              <Vote className="w-5 h-5 text-white" />
-            </div>
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-[#C8FF4D] rounded-full border-2 border-white animate-pulse" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-lg font-bold text-[#3A3F52] tracking-tight">Votely</span>
-            <span className="text-[10px] text-[#9AA3B8] -mt-1 font-medium tracking-wider uppercase">
-              {isAdmin ? 'Admin Panel' : 'E-Voting'}
-            </span>
-          </div>
+          <Image 
+            src="/logo-with-text.png" 
+            alt="Votely Logo" 
+            width={140} 
+            height={40}
+            className="h-10 w-auto"
+          />
         </Link>
 
         {/* Navigation Links - Center */}

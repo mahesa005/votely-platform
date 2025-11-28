@@ -234,7 +234,7 @@ export default function LoginPage() {
                   NIK (Nomor Induk Kependudukan)
                 </Label>
                 <div className="relative group">
-                  <User className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#9AA3B8] group-focus-within:text-[#1FD7BE] transition-colors" />
+                  <User className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#9AA3B8] group-focus-within:text-[#1FD7BE] transition-colors z-10" />
                   <Input
                     id="nik"
                     placeholder="Masukkan 16 digit NIK Anda"
@@ -251,7 +251,7 @@ export default function LoginPage() {
                   Password
                 </Label>
                 <div className="relative group">
-                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#9AA3B8] group-focus-within:text-[#1FD7BE] transition-colors" />
+                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#9AA3B8] group-focus-within:text-[#1FD7BE] transition-colors z-10" />
                   <Input
                     id="password"
                     type="password"
