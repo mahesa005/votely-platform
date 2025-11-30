@@ -2,7 +2,7 @@
 
 Platform e-voting berbasis blockchain dengan verifikasi biometrik wajah untuk pemilu yang aman dan transparan.
 
-## 🎯 Fitur Utama
+## Fitur Utama
 
 - **Autentikasi Biometrik** - Verifikasi wajah real-time menggunakan FaceNet
 - **Blockchain Voting** - Suara dicatat di Ethereum (Sepolia Testnet)
@@ -10,7 +10,7 @@ Platform e-voting berbasis blockchain dengan verifikasi biometrik wajah untuk pe
 - **Admin Dashboard** - Kelola pemilu dan kandidat
 - **Real-time Results** - Hasil voting langsung dari blockchain
 
-## 🏗️ Arsitektur
+## Arsitektur
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
@@ -25,7 +25,7 @@ Platform e-voting berbasis blockchain dengan verifikasi biometrik wajah untuk pe
 └─────────────────┘
 ```
 
-## 📁 Struktur Project
+## Struktur Project
 
 ```
 votely-platform/
@@ -43,7 +43,7 @@ votely-platform/
     └── Dockerfile        # Docker configuration
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -110,7 +110,7 @@ NEXT_PUBLIC_ALCHEMY_API_KEY="your-alchemy-key"
 FACE_RECOGNITION_API_URL="http://localhost:5000"
 ```
 
-## 🐳 Docker Deployment
+## Docker Deployment
 
 ### Face Recognition API
 
@@ -152,14 +152,14 @@ curl http://localhost:5000/health
 | `/api/elections` | GET/POST | List/Create elections |
 | `/api/vote/cast` | POST | Cast vote to blockchain |
 
-## 🔐 Security Features
+## Security Features
 
 - **JWT Authentication** - Secure token-based auth
 - **Face Verification** - 512-dim FaceNet embeddings
 - **Blockchain Immutability** - Votes cannot be altered
 - **HTTPOnly Cookies** - XSS protection
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 **Frontend:**
 - Next.js 16 (App Router)
@@ -184,11 +184,11 @@ curl http://localhost:5000/health
 - Ethers.js
 - Sepolia Testnet
 
-## 📝 License
+## License
 
 MIT License - see [LICENSE](LICENSE) for details.
 
-## 👥 Contributors
+## Contributors
 
 - Mahesa Fadhillah Andre - [@mahesa005](https://github.com/mahesa005)
 - Muhammad Farrel Wibowo - [@faawibowo](https://github.com/faawibowo)
